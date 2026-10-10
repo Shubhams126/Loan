@@ -1,6 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data;
+﻿
+using System.ComponentModel.DataAnnotations;
 
 namespace Loan.Domain.Models
 {
@@ -9,21 +8,33 @@ namespace Loan.Domain.Models
         [Key]
         public int UserId { get; set; }
 
-        [ForeignKey("Role")]
         public int RoleId { get; set; }
 
-        [ForeignKey("Customer")]
         public int? CustomerId { get; set; }
 
-        public string FirstName { get; set; }
+        [Required]
+        public string FirstName { get; set; } = string.Empty;
 
-        public string LastName { get; set; }
+        [Required]
+        public string LastName { get; set; } = string.Empty;
 
-        public string Email { get; set; }
+        [Required, EmailAddress]
+        public string Email { get; set; } = string.Empty;
 
-        public string Mobile { get; set; }
+        public string Mobile { get; set; } = string.Empty;
 
-        public string Password { get; set; }
+        [Required]
+        public string PasswordHash { get; set; } = string.Empty;
+
+        public bool IsTwoFactorEnabled { get; set; } = false;
+
+        public string? AuthenticatorSecret { get; set; }
+
+        public bool IsAuthenticatorSetupPending { get; set; } = false;
+
+        public string? LoginChallengeId { get; set; }
+
+        public DateTime? LoginChallengeExpiry { get; set; }
 
         public Role? Role { get; set; }
 
