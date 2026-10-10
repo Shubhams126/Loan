@@ -8,16 +8,16 @@ namespace Loan.Domain.Models
         public int CustomerId { get; set; }
 
         [Required(ErrorMessage = "First Name is required")]
-        [RegularExpression(@"^[A-Za-z]{2,12}$",ErrorMessage = "It should be alphabet only")]
+        
         public string FirstName { get; set; }
 
         [Required(ErrorMessage = "Last Name is required")]
-        [RegularExpression(@"^[A-Za-z]{2,12}$",ErrorMessage = "It should be alphabet only")]
         public string LastName { get; set; }
 
         // AGE VALIDATION
         [Required(ErrorMessage = "Age is required")]
-        [Range(18, 60,ErrorMessage = "Age must be between 18 and 60")]
+        [Range(18, 60, ErrorMessage = "Age must be between 18 and 60")]
+
         public int Age { get; set; }
 
         // EMAIL VALIDATION
