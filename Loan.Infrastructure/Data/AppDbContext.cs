@@ -1,14 +1,12 @@
-﻿using Loan.Domain.Models;
+﻿
+using Loan.Domain.Models;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Data;
 
 namespace Loan.Infrastructure.Data
 {
     public class AppDbContext : DbContext
     {
-
         public AppDbContext(DbContextOptions<AppDbContext> options)
             : base(options)
         {
@@ -49,7 +47,7 @@ namespace Loan.Infrastructure.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // Roles
+            // Seed roles
             modelBuilder.Entity<Role>().HasData(
                 new Role { RoleId = 1, RoleName = "Customer" },
                 new Role { RoleId = 2, RoleName = "LoanOfficer" }
@@ -68,14 +66,14 @@ namespace Loan.Infrastructure.Data
                 .HasIndex(l => l.LoanAccountNo)
                 .IsUnique();
 
-            // User - Role: many users can have one role
+            // User - Role
             modelBuilder.Entity<User>()
                 .HasOne(u => u.Role)
                 .WithMany(r => r.Users)
                 .HasForeignKey(u => u.RoleId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // User - Customer: optional one-to-one relationship
+            // User - Customer: optional one-to-one
             modelBuilder.Entity<User>()
                 .HasOne(u => u.Customer)
                 .WithOne()
@@ -142,13 +140,14 @@ namespace Loan.Infrastructure.Data
                 .HasForeignKey(d => d.DealId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // LoanAccount - Customer and LoanDeal
+            // LoanAccount - Customer
             modelBuilder.Entity<LoanAccount>()
                 .HasOne(l => l.Customer)
                 .WithMany()
                 .HasForeignKey(l => l.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // LoanAccount - LoanDeal
             modelBuilder.Entity<LoanAccount>()
                 .HasOne(l => l.LoanDeal)
                 .WithMany()
@@ -186,46 +185,49 @@ namespace Loan.Infrastructure.Data
                 .HasForeignKey(p => p.EmiScheduleId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Foreclosure request
+            // Foreclosure request - LoanAccount
             modelBuilder.Entity<ForeClosureRequest>()
                 .HasOne(f => f.LoanAccount)
                 .WithMany()
                 .HasForeignKey(f => f.LoanAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Foreclosure request - User
             modelBuilder.Entity<ForeClosureRequest>()
                 .HasOne<User>()
                 .WithMany()
                 .HasForeignKey(f => f.ClosedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Loan closure
+            // Loan closure - LoanAccount
             modelBuilder.Entity<LoanClosure>()
                 .HasOne(l => l.LoanAccount)
                 .WithMany()
                 .HasForeignKey(l => l.LoanAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Loan closure - User
             modelBuilder.Entity<LoanClosure>()
                 .HasOne(l => l.User)
                 .WithMany()
                 .HasForeignKey(l => l.ClosedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Notification has CustomerId but no navigation property
+            // Notification - Customer
             modelBuilder.Entity<Notification>()
                 .HasOne<Customer>()
                 .WithMany()
                 .HasForeignKey(n => n.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Support tickets
+            // SupportTicket - Customer
             modelBuilder.Entity<SupportTicket>()
                 .HasOne(s => s.Customer)
                 .WithMany()
                 .HasForeignKey(s => s.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // SupportTicket - LoanAccount
             modelBuilder.Entity<SupportTicket>()
                 .HasOne(s => s.LoanAccount)
                 .WithMany()
