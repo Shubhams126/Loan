@@ -1,3 +1,10 @@
+using Hangfire;
+using Hangfire.SqlServer;
+using Loan.Application.Interface;
+using Loan.Infrastructure.Data;
+using Loan.Infrastructure.Services;
+using Microsoft.EntityFrameworkCore;
+using static System.Net.WebRequestMethods;
 using Loan.Application.Interface;
 using Loan.Infrastructure.Data;
 using Loan.Infrastructure.Services;
@@ -78,6 +85,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddScoped<ILoanAccountService, LoanAccountService>();
+builder.Services.AddScoped<IEmiScheduleService, EmiScheduleService>();
+
+
+
+builder.Services.AddHangfire(config =>
+    config.UseSqlServerStorage(
+        builder.Configuration.GetConnectionString("dbconn")));
+
+builder.Services.AddHangfireServer();
+
 builder.Services.AddAuthorization();
 var app = builder.Build();
 
@@ -88,7 +106,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Configure the HTTP request pipeline.
+//if (app.Environment.IsDevelopment())
+//{
+//    app.MapOpenApi();
+//}
+
 app.UseHttpsRedirection();
+
+app.UseHangfireDashboard();
 
 app.UseAuthentication();
 app.UseAuthorization();
