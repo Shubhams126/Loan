@@ -17,7 +17,7 @@ namespace Loan.Infrastructure.Data
         // Authentication and registration
         public DbSet<User> Users { get; set; }
         public DbSet<Role> Roles { get; set; }
-        //public DbSet<PendingRegistration> PendingRegistrations { get; set; }
+        public DbSet<PendingRegistration> PendingRegistrations { get; set; }
 
         // Customer onboarding and eligibility
         public DbSet<Customer> Customers { get; set; }
