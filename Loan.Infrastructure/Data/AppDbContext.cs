@@ -1,4 +1,4 @@
-﻿
+
 using Loan.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
@@ -73,7 +73,7 @@ namespace Loan.Infrastructure.Data
                 .HasForeignKey(u => u.RoleId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // User - Customer: optional one-to-one
+            // User - Customer
             modelBuilder.Entity<User>()
                 .HasOne(u => u.Customer)
                 .WithOne()
@@ -119,7 +119,7 @@ namespace Loan.Infrastructure.Data
                 .HasForeignKey(d => d.DealId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // User (Loan Officer) - DealReview
+            // User - DealReview
             modelBuilder.Entity<DealReview>()
                 .HasOne(d => d.User)
                 .WithMany(u => u.DealReviews)
@@ -185,28 +185,26 @@ namespace Loan.Infrastructure.Data
                 .HasForeignKey(p => p.EmiScheduleId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Foreclosure request - LoanAccount
+            // Foreclosure request
             modelBuilder.Entity<ForeClosureRequest>()
                 .HasOne(f => f.LoanAccount)
                 .WithMany()
                 .HasForeignKey(f => f.LoanAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Foreclosure request - User
             modelBuilder.Entity<ForeClosureRequest>()
                 .HasOne<User>()
                 .WithMany()
                 .HasForeignKey(f => f.ClosedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Loan closure - LoanAccount
+            // Loan closure
             modelBuilder.Entity<LoanClosure>()
                 .HasOne(l => l.LoanAccount)
                 .WithMany()
                 .HasForeignKey(l => l.LoanAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Loan closure - User
             modelBuilder.Entity<LoanClosure>()
                 .HasOne(l => l.User)
                 .WithMany()
