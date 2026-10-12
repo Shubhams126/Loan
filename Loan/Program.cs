@@ -1,5 +1,10 @@
+using Hangfire;
+using Hangfire.SqlServer;
+using Loan.Application.Interface;
 using Loan.Infrastructure.Data;
+using Loan.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using static System.Net.WebRequestMethods;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,7 +12,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+//builder.Services.AddOpenApi();
+
+// Swagger
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<AppDbContext>(
     options =>
@@ -17,15 +26,35 @@ builder.Services.AddDbContext<AppDbContext>(
         )
 );
 
+builder.Services.AddScoped<ILoanAccountService, LoanAccountService>();
+builder.Services.AddScoped<IEmiScheduleService, EmiScheduleService>();
+
+
+
+builder.Services.AddHangfire(config =>
+    config.UseSqlServerStorage(
+        builder.Configuration.GetConnectionString("dbconn")));
+
+builder.Services.AddHangfireServer();
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+app.UseSwaggerUI();
 }
 
+// Configure the HTTP request pipeline.
+//if (app.Environment.IsDevelopment())
+//{
+//    app.MapOpenApi();
+//}
+
 app.UseHttpsRedirection();
+
+app.UseHangfireDashboard();
 
 app.UseAuthorization();
 
