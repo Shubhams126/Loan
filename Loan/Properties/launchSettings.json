@@ -1,4 +1,9 @@
+
 {
+
+ {
+
+
   "profiles": {
     "http": {
       "commandName": "Project",
@@ -19,6 +24,10 @@
     "IIS Express": {
       "commandName": "IISExpress",
       "launchBrowser": true,
+
+
+      "launchUrl": "swagger",
+
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
@@ -29,8 +38,8 @@
     "windowsAuthentication": false,
     "anonymousAuthentication": true,
     "iisExpress": {
-      "applicationUrl": "http://localhost:61533/",
-      "sslPort": 44303
+      "applicationUrl": "http://localhost:28725/",
+      "sslPort": 44365
     }
   }
 }
