@@ -1,8 +1,7 @@
-﻿using Loan.Domain.Models;
+
+using Loan.Domain.Models;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Data;
 
 namespace Loan.Infrastructure.Data
 {
