@@ -4,7 +4,8 @@ using System.Text;
 
 namespace Loan.Application.DTOs
 {
-    internal class GoogleLoginDto
+    public class GoogleLoginDto
     {
+        public string IdToken { get; set; } = string.Empty;
     }
 }

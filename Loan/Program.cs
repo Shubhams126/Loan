@@ -22,6 +22,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<IKycService, KycService>();
 
 
 // JWT authentication
