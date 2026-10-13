@@ -11,11 +11,21 @@ namespace Loan.Domain.Models
         [ForeignKey("Customer")]
         public int CustomerId { get; set; }
 
-        public string DocumentType { get; set; }
+        [Required]
+        public string DocumentType { get; set; } = string.Empty;
 
-        public string FilePath { get; set; }
+        [Required]
+        public string FilePath { get; set; } = string.Empty;
 
-        public string VerificationStatus { get; set; }
+        [Required]
+        public string VerificationStatus { get; set; } = "Pending";
+
+        public string? RejectionReason { get; set; }
+
+        public int? ReviewedByUserId { get; set; }
+        public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+
+        public DateTime? ReviewedAt { get; set; }
 
         public Customer? Customer { get; set; }
     }
