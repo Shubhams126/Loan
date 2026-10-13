@@ -96,4 +96,23 @@ public class LoanAccountService : ILoanAccountService
 
         return loanAccounts;
     }
+
+    public async Task<List<LoanAccountListDto>> GetMyLoanAccounts(int customerId)
+    {
+        var accounts = await db.LoanAccounts.Where(a => a.CustomerId == customerId).Select(a => new LoanAccountListDto
+        {
+            LoanAccountId = a.LoanAccountId,
+            LoanAccountNo = a.LoanAccountNo,
+            CustomerName = a.Customer != null ? a.Customer.FirstName + " " + a.Customer.LastName :"",
+            LoanAmount= a.LoanAmount,
+            OutstandingPrincipal = a.OutstandingPrincipal,
+            Status = a.LoanStatus,
+            InterestRate = a.InterestRate,
+            TenureMonths = a.TenureMonths,
+            EmiAmount = a.EmiAmount,
+            DisbursementDate = a.DisbursementDate,
+            TotalPaid = a.TotalPaidAmount
+        }).ToListAsync();
+        return accounts;
+    }
 }

@@ -1,4 +1,5 @@
 ﻿using Loan.Application.Interface;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -33,5 +34,20 @@ public class LoanAccountController : ControllerBase
         {
             return BadRequest(result);
         }
+    }
+
+    [Authorize]
+    [HttpGet("my-accounts")]
+    public async Task<IActionResult> GetMyLoanAccounts()
+    {
+        var cstmClaimId = User.FindFirst("CustomerId");
+        if(cstmClaimId == null){
+            return Unauthorized("CustomerId not found In Token");
+        }
+
+        int cstmId = int.Parse(cstmClaimId.Value);
+
+        var result = await Service.GetMyLoanAccounts(cstmId);
+        return Ok(result);
     }
 }
