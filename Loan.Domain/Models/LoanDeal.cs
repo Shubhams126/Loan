@@ -13,10 +13,8 @@ namespace Loan.Domain.Models
 
         public string LoanType { get; set; }
 
-        // Requested Amount
         public decimal LoanAmount { get; set; }
 
-        // Hardcoded Interest Rate
         public double InterestRate { get; set; }
 
         public int TenureMonths { get; set; }
@@ -34,12 +32,13 @@ namespace Loan.Domain.Models
         [Required]
         [RegularExpression(@"^[A-Z]{4}0[A-Z0-9]{6}$",
             ErrorMessage = "Invalid IFSC Code")]
+
         public string IFSCCode { get; set; }
 
         [Required]
         public int EmiDay { get; set; }
 
-        // Approved Amount
+      
         public decimal ApprovedAmount { get; set; }
 
         public string CurrentStatus { get; set; } = "Pending";
