@@ -10,5 +10,7 @@ namespace Loan.Application.Interface
         Task<List<LoanAccountListDto>> GetAllLoanAccountsAsync();
 
         Task<string> CreateLoanAccount(int disbursementId);
+
+        Task<List<LoanAccountListDto>> GetMyLoanAccounts(int customerId);
     }
 }
