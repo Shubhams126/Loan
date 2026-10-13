@@ -48,6 +48,7 @@ builder.Services.AddScoped<IEmiScheduleService, EmiScheduleService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<IKycService, KycService>();
 
 // JWT configuration
 var jwtKey = builder.Configuration["Jwt:Key"];
