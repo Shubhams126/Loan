@@ -111,6 +111,7 @@ namespace Loan.Infrastructure.Services
             report.PanNo = customer.Pan;
             report.CibilScore = totalScore;
             report.CheckDate = DateTime.Now;
+            report.Customer = customer;
 
             db.CibilReports.Add(report);
             await db.SaveChangesAsync();
@@ -121,6 +122,7 @@ namespace Loan.Infrastructure.Services
         public async Task<CibilReport?> GetLatestCibil(int customerId)
         {
             var report = await db.CibilReports
+                .Include(r => r.Customer)
                 .Where(r => r.CustomerId == customerId)
                 .OrderByDescending(r => r.CheckDate)
                 .FirstOrDefaultAsync();

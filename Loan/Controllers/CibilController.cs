@@ -21,7 +21,8 @@ namespace Loan.Controllers
             this.db = db;
         }
 
-        [HttpPost("calculate/{customerId}")]
+        [HttpPost]
+        [Route("calculate/{customerId}")]
         public async Task<IActionResult> GetCibilScoreReport(int customerId)
         {
             var report = await service.GetCibilScore(customerId);
@@ -35,6 +36,7 @@ namespace Loan.Controllers
             {
                 report.CibilReportId,
                 report.CustomerId,
+                CustomerName = report.Customer != null? report.Customer.FirstName + " " + report.Customer.LastName: "",
                 report.PanNo,
                 report.CibilScore,
                 report.CheckDate
@@ -51,7 +53,8 @@ namespace Loan.Controllers
             return Ok(response);
         }
 
-        [HttpGet("latest/{customerId}")]
+        [HttpGet]
+        [Route("latest/{customerId}")]
         public async Task<IActionResult> GetLatestCibil(int customerId)
         {
             var report = await service.GetLatestCibil(customerId);
@@ -65,6 +68,7 @@ namespace Loan.Controllers
             {
                 report.CibilReportId,
                 report.CustomerId,
+                CustomerName = report.Customer != null ? report.Customer.FirstName + " " + report.Customer.LastName : "",
                 report.PanNo,
                 report.CibilScore,
                 report.CheckDate

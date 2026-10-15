@@ -21,7 +21,7 @@ namespace Loan.Controllers
 
         [HttpPost("upload")]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> Upload([FromForm] KycUploadDto dto)
+        public async Task<IActionResult> Upload([FromForm] string documentType, /*[FromForm]*/ IFormFile file)
         {
             if (dto.File == null || dto.File.Length == 0)
                 return BadRequest("Please select a file.");

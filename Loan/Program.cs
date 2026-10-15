@@ -1,8 +1,6 @@
 
-using AutoMapper;
 using Loan.Application.Interface;
 using Loan.Application.Mapping;
-
 using Loan.Infrastructure.Data;
 using Loan.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -26,7 +24,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// 2. AutoMapper 15 registration
+// 2. AutoMapper
 builder.Services.AddAutoMapper(cfg =>
 {
     cfg.AddProfile<LoanMappingProfile>();
@@ -35,10 +33,9 @@ builder.Services.AddAutoMapper(cfg =>
 // 3. Controllers and Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(
-    );
+builder.Services.AddSwaggerGen();
 
-// 4. CORS for Angular frontend
+// 4. CORS for Angular
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AngularPolicy", policy =>
@@ -46,7 +43,8 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins("http://localhost:4200")
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -97,17 +95,20 @@ builder.Services.AddRateLimiter(options =>
 
 // 8. Application service registrations
 builder.Services.AddScoped<IApplyLoanService, ApplyLoanService>();
-builder.Services.AddScoped<ICibilService, CibilService>();
-builder.Services.AddScoped<IDisbursementService, DisbursementService>();
-builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<IEligibilityService, EligibilityService>();
-builder.Services.AddScoped<IEmiPaymentService, EmiPaymentService>();
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IForeClosureService, ForeClosureService>();
 builder.Services.AddScoped<ILoanDealService, LoanDealService>();
 builder.Services.AddScoped<ISanctionLetterService, SanctionLetterService>();
+builder.Services.AddScoped<IDisbursementService, DisbursementService>();
+builder.Services.AddScoped<ICibilService, CibilService>();
+builder.Services.AddScoped<IScoreCardService, ScoreCardService>();
+builder.Services.AddScoped<IEligibilityService, EligibilityService>();
+builder.Services.AddScoped<IEmiPaymentService, EmiPaymentService>();
+builder.Services.AddScoped<IForeClosureService, ForeClosureService>();
+builder.Services.AddScoped<IPaymentHistroyService, PaymentHistroyService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IKycService, KycService>();
 
-// 9. JWT token service registration
+// 9. JWT token service
 builder.Services.AddScoped<JwtTokenService>();
 
 var app = builder.Build();
@@ -119,12 +120,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-//app.UseHttpsRedirection();
+// app.UseHttpsRedirection();
 
 app.UseCors("AngularPolicy");
 
 app.UseStaticFiles();
-
 
 app.UseRateLimiter();
 
