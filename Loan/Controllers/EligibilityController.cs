@@ -52,7 +52,6 @@ namespace Loan.Controllers
             return Ok(response);
         }
 
-        [Authorize(Roles = "LoanOfficer")]
         [HttpGet]
         [Route("manual-reviews")]
         public async Task<IActionResult> GetManualReviews()
@@ -67,7 +66,6 @@ namespace Loan.Controllers
             });
         }
 
-        [Authorize(Roles = "LoanOfficer")]
         [HttpPost]
         [Route("manual-review/decision")]
         public async Task<IActionResult> DecideManualReview(ManualReviewDecisionDto decision)
