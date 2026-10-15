@@ -15,6 +15,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Controllers and Swagger
 builder.Services.AddControllers();
+
+
+builder.Services.AddScoped<IEmiPaymentService, EmiPaymentService>();
+builder.Services.AddScoped<IForeClosureService, ForeClosureService>();
+
+builder.Services.AddScoped<IPaymentHistroyService, PaymentHistroyService>();
+
+
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -79,6 +88,17 @@ builder.Services.AddAuthentication(options =>
     options.DefaultAuthenticateScheme =
         JwtBearerDefaults.AuthenticationScheme;
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("MyApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+        .AllowAnyMethod()
+        .AllowAnyHeader()
+        .AllowCredentials();
+    });
+});
+
     options.DefaultChallengeScheme =
         JwtBearerDefaults.AuthenticationScheme;
 })
@@ -123,9 +143,7 @@ app.UseHangfireDashboard();
 
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.UseCors("MyApp");
-
 app.MapControllers();
 
 app.Run();
