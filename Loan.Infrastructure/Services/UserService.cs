@@ -1,5 +1,4 @@
 ﻿
-using Google.Apis.Auth;
 using Loan.Application.DTOs;
 using Loan.Application.Interface;
 using Loan.Domain.Models;
@@ -42,8 +41,8 @@ namespace Loan.Infrastructure.Services
 
             if (await db.PendingRegistrations.AnyAsync(p => p.Email.ToLower() == dto.Email.ToLower()))
             {
-                db.PendingRegistrations.RemoveRange(db.PendingRegistrations.Where(p => p.Email.ToLower() == dto.Email.ToLower()));
-
+                db.PendingRegistrations.RemoveRange(
+                    db.PendingRegistrations.Where(p => p.Email.ToLower() == dto.Email.ToLower()));
                 await db.SaveChangesAsync();
             }
 
@@ -159,7 +158,7 @@ namespace Loan.Infrastructure.Services
                     AadhaarNo = pending.AadhaarNo,
                     EmploymentType = pending.EmploymentType,
                     MonthlyIncome = pending.MonthlyIncome,
-                    TotalMonthlyDebt = pending.TotalMonthlyDebt,
+                    TotalMonthlyDebt = 0,
                     IsEmailVerified = true
                 };
 
@@ -330,66 +329,6 @@ namespace Loan.Infrastructure.Services
                 Token = token,
                 Role = user.Role?.RoleName
             };
-        }
-        public async Task<AuthResponseDto> GoogleLogin(GoogleLoginDto dto)
-        {
-            try
-            {
-                string clientId = config["Google:ClientId"] ?? throw new InvalidOperationException("Google Client ID is missing.");
-
-                var settings = new GoogleJsonWebSignature.ValidationSettings
-                {
-                    Audience = new[] { clientId }
-                };
-
-                var payload = await GoogleJsonWebSignature.ValidateAsync(dto.IdToken, settings);
-
-                if (!payload.EmailVerified)
-                {
-                    return new AuthResponseDto
-                    {
-                        Success = false,
-                        Message = "Google email is not verified."
-                    };
-                }
-
-                User? user = await db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Email.ToLower() == payload.Email.ToLower());
-
-                if (user == null)
-                {
-                    return new AuthResponseDto
-                    {
-                        Success = false,
-                        Message = "Account not found. Please register first."
-                    };
-                }
-
-                string challengeId = Guid.NewGuid().ToString("N");
-
-                user.LoginChallengeId = challengeId;
-                user.LoginChallengeExpiry = DateTime.UtcNow.AddMinutes(5);
-
-                await db.SaveChangesAsync();
-
-                return new AuthResponseDto
-                {
-                    Success = true,
-                    Message = user.IsTwoFactorEnabled
-                        ? "Google sign-in successful. Enter your authenticator OTP."
-                        : "Google sign-in successful. Set up your authenticator app.",
-                    ChallengeId = challengeId,
-                    Requires2FASetup = !user.IsTwoFactorEnabled,
-                    Role = user.Role?.RoleName
-                };
-            }
-            catch (InvalidJwtException)
-            {
-                return new AuthResponseDto
-                {
-                    Success = false,
-                    Message = "Invalid Google ID token."
-                };
-            }
         }
     }
 }

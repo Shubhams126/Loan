@@ -24,7 +24,7 @@
 
         public decimal EmiAmount { get; set; }
 
-        public string CurrentStatus { get; set; }
+        public string? CurrentStatus { get; set; }
 
         public string? RejectionReason { get; set; }
         public DateTime AppliedDate { get; set; }
