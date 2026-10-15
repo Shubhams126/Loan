@@ -16,6 +16,8 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<IEmiPaymentService, EmiPaymentService>();
 builder.Services.AddScoped<IForeClosureService, ForeClosureService>();
 
+builder.Services.AddScoped<IPaymentHistroyService, PaymentHistroyService>();
+
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();// Configure the HTTP request pipeline.
@@ -57,6 +59,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("MyApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+        .AllowAnyMethod()
+        .AllowAnyHeader()
+        .AllowCredentials();
+    });
+});
+
 builder.Services.AddAuthorization();
 var app = builder.Build();
 
@@ -70,7 +83,7 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
-
+app.UseCors("MyApp");
 app.MapControllers();
 
 app.Run();

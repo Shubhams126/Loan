@@ -7,6 +7,11 @@ namespace Loan.Application.Interface
 {
     public interface IEmiPaymentService
     {
-        Task<string> MakeEmiPayment(CreateEmiPaymentDto dto);
+        Task<string> MakeEmiPayment(CreateEmiPaymentDto dto, string? razorpayPaymentId = null);
+       string  CreateRazorpayOrder(CreateOrderDto dto);
+
+        Task<EmiPaymentDetailsDto?> GetEmiPaymentDetails(int id);
+
+        Task<bool> VerifyEmiPayment(VerifyEmiPaymentDto dtos);
     }
 }
