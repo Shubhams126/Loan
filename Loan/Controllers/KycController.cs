@@ -22,7 +22,7 @@ namespace Loan.Controllers
         [HttpPost("Upload")]
         [Authorize(Roles = "Customer")]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> Upload([FromForm] string documentType, [FromForm] IFormFile file)
+        public async Task<IActionResult> Upload([FromForm] string documentType, /*[FromForm]*/ IFormFile file)
         {
             int customerId = int.Parse(User.FindFirst("CustomerId")!.Value);
             using var stream = file.OpenReadStream();
