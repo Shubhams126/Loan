@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Controllers and Swagger
@@ -39,7 +40,18 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// Loan application services
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("MyApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+        .AllowAnyMethod()
+        .AllowAnyHeader()
+        .AllowCredentials();
+    });
+});
+
 builder.Services.AddScoped<IApplyLoanService, ApplyLoanService>();
 builder.Services.AddScoped<ISanctionLetterService, SanctionLetterService>();
 builder.Services.AddScoped<IDisbursementService, DisbursementService>();
@@ -57,7 +69,9 @@ builder.Services.AddScoped<IEmiScheduleService, EmiScheduleService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<JwtTokenService>();
+
 builder.Services.AddScoped<IKycService, KycService>();
+
 
 builder.Services.AddCors(options =>
 {
