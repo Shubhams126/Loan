@@ -50,6 +50,17 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IKycService, KycService>();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("MyApp", policy =>
+    { 
+    policy.WithOrigins("http://localhost:4200")
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+    .AllowCredentials();
+});
+});
+
 // JWT configuration
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
@@ -98,6 +109,8 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+app.UseCors("AllowAngular");
+
 // HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
@@ -110,6 +123,8 @@ app.UseHangfireDashboard();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseCors("MyApp");
 
 app.MapControllers();
 

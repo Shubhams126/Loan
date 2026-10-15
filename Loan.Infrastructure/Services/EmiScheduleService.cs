@@ -83,6 +83,7 @@ namespace Loan.Infrastructure.Services
                 .OrderBy(x => x.InstallmentNo)
                 .Select(x => new EmiScheduleDto
                 {
+                    EmiScheduleId = x.EmiScheduleId,
                     InstallmentNo = x.InstallmentNo,
                     DueDate = x.DueDate,
                     Emi = x.Emi,

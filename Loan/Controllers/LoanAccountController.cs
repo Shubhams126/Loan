@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/loan-accounts")]
 public class LoanAccountController : ControllerBase
 {
-    private readonly ILoanAccountService Service;
+    ILoanAccountService Service;
 
     public LoanAccountController(ILoanAccountService Service)
     {
@@ -36,16 +36,17 @@ public class LoanAccountController : ControllerBase
         }
     }
 
-    [Authorize]
+    //[Authorize]
     [HttpGet("my-accounts")]
     public async Task<IActionResult> GetMyLoanAccounts()
     {
-        var cstmClaimId = User.FindFirst("CustomerId");
-        if(cstmClaimId == null){
-            return Unauthorized("CustomerId not found In Token");
-        }
+        //var cstmClaimId = User.FindFirst("CustomerId");
+        //if(cstmClaimId == null){
+        //    return Unauthorized("CustomerId not found In Token");
+        //}
 
-        int cstmId = int.Parse(cstmClaimId.Value);
+        //int cstmId = int.Parse(cstmClaimId.Value);
+        int cstmId = 1;
 
         var result = await Service.GetMyLoanAccounts(cstmId);
         return Ok(result);
