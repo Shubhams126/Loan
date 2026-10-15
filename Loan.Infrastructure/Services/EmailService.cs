@@ -20,16 +20,9 @@ namespace Loan.Infrastructure.Services
         public async Task SendOtp(string email, string otp)
         {
             var smtpHost = configuration["EmailSettings:SmtpHost"];
-            var smtpPort = int.Parse(
-                configuration["EmailSettings:SmtpPort"]!);
+            var smtpPort = int.Parse(configuration["EmailSettings:SmtpPort"]!);
             var senderEmail = configuration["EmailSettings:SenderEmail"];
             var senderPassword = configuration["EmailSettings:SenderPassword"];
-
-            //var smtpHost = configuration["EmailSettings:SmtpHost"];
-            //var smtpPort = int.Parse(
-            //    configuration["EmailSettings:SmtpPort"]!);
-            //var senderEmail = configuration["EmailSettings:SenderEmail"];
-            //var senderPassword = configuration["EmailSettings:SenderPassword"];
 
             using var message = new MailMessage();
             message.From = new MailAddress(senderEmail!);

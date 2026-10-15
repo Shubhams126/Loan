@@ -1,0 +1,13 @@
+﻿using Loan.Domain.Models;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace Loan.Application.Interface
+{
+    public interface IEligibilityService
+    {
+        Task<EligibilityResult?> CheckEligibility(int customerId, int tenureMonths);
+        decimal GetMaxEligibleLoanAmount(Customer customer);
+    }
+}
