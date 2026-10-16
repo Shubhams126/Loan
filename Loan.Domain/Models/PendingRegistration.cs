@@ -20,7 +20,6 @@ namespace Loan.Domain.Models
         public string AadhaarNo { get; set; } = "";
         public string EmploymentType { get; set; } = "";
         public decimal MonthlyIncome { get; set; }
-        public decimal TotalMonthlyDebt { get; set; }
 
         public string OtpHash { get; set; } = "";
         public DateTime OtpExpiry { get; set; }

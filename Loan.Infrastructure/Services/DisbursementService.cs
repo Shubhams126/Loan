@@ -1,53 +1,70 @@
-﻿using Loan.Application.DTOs;
+
+using AutoMapper;
+using Loan.Application.DTOs;
 using Loan.Application.Interface;
 using Loan.Domain.Models;
 using Loan.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Loan.Application.Services
+namespace Loan.Infrastructure.Services
 {
     public class DisbursementService : IDisbursementService
     {
         private readonly AppDbContext db;
+        private readonly IMapper mapper;
 
-        public DisbursementService(AppDbContext db)
+        public DisbursementService(AppDbContext db, IMapper mapper)
         {
             this.db = db;
+            this.mapper = mapper;
         }
 
-        public async Task<List<DisbursementDto>> GetPendingDisbursementsAsync()
+  
+        public async Task<PagedResult<DisbursementDto>>
+            GetPendingDisbursementsAsync(int page, int pageSize)
         {
-            var loans = await db.LoanDeals
+            page = Math.Max(page, 1);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var query = db.LoanDeals
+                .AsNoTracking()
                 .Where(x =>
                     x.CurrentStatus == "Approved" &&
                     x.ApprovedAmount > 0 &&
-                    db.SanctionLetters.Any(s => s.DealId == x.DealId) &&
-                    !db.Disbursements.Any(d => d.DealId == x.DealId))
+                    db.SanctionLetters.Any(s =>
+                        s.DealId == x.DealId) &&
+                    !db.Disbursements.Any(d =>
+                        d.DealId == x.DealId) &&
+                    !db.LoanAccounts.Any(a =>
+                        a.DealId == x.DealId));
+
+            var totalCount = await query.CountAsync();
+
+            var loans = await query
                 .OrderByDescending(x => x.AppliedDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            var result = new List<DisbursementDto>();
+            var result = mapper.Map<List<DisbursementDto>>(loans);
 
-            foreach (var loan in loans)
-            {
-                result.Add(new DisbursementDto
-                {
-                    DealId = loan.DealId,
-                    DisburseAmount = loan.ApprovedAmount,
-                    BankPartner = loan.BankName
-                });
-            }
-
-            return result;
+            return PagedResult<DisbursementDto>.Create(
+                result, page, pageSize, totalCount);
         }
+
 
         public async Task<DisbursementDto> DisburseLoanAsync(
             DisbursementDto dto)
         {
+            if (dto == null)
+            {
+                throw new ArgumentNullException(nameof(dto));
+            }
+
             if (dto.DealId <= 0)
             {
                 throw new InvalidOperationException(
-                    "A valid DealId is required.");
+                    "A valid Deal ID is required.");
             }
 
             if (dto.DisburseAmount <= 0)
@@ -59,7 +76,7 @@ namespace Loan.Application.Services
             if (string.IsNullOrWhiteSpace(dto.BankPartner))
             {
                 throw new InvalidOperationException(
-                    "Bank partner is required.");
+                    "Please select a bank partner.");
             }
 
             var loan = await db.LoanDeals
@@ -67,7 +84,8 @@ namespace Loan.Application.Services
 
             if (loan == null)
             {
-                throw new KeyNotFoundException("Loan deal not found.");
+                throw new KeyNotFoundException(
+                    "Loan deal not found.");
             }
 
             if (loan.CurrentStatus != "Approved")
@@ -120,7 +138,8 @@ namespace Loan.Application.Services
 
             if (!customerExists)
             {
-                throw new KeyNotFoundException("Customer not found.");
+                throw new KeyNotFoundException(
+                    "Customer not found.");
             }
 
             var disbursementDate = DateTime.Now;
@@ -150,7 +169,8 @@ namespace Loan.Application.Services
                     LoanAmount = loan.ApprovedAmount,
                     OutstandingPrincipal = loan.ApprovedAmount,
                     LoanStatus = "Active",
-                    InterestRate = Convert.ToDecimal(loan.InterestRate),
+                    InterestRate =
+                        Convert.ToDecimal(loan.InterestRate),
                     TenureMonths = loan.TenureMonths,
                     EmiAmount = loan.EmiAmount,
                     DisbursementDate = disbursementDate,
@@ -160,17 +180,13 @@ namespace Loan.Application.Services
 
                 db.LoanAccounts.Add(account);
 
+
                 loan.CurrentStatus = "Active";
 
                 await db.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return new DisbursementDto
-                {
-                    DealId = loan.DealId,
-                    DisburseAmount = loan.ApprovedAmount,
-                    BankPartner = dto.BankPartner.Trim()
-                };
+                return mapper.Map<DisbursementDto>(disbursement);
             }
             catch
             {
@@ -179,25 +195,26 @@ namespace Loan.Application.Services
             }
         }
 
-        public async Task<List<DisbursementDto>> GetDisbursementsAsync()
+        public async Task<PagedResult<DisbursementDto>>
+            GetDisbursementsAsync(int page, int pageSize)
         {
-            var disbursements = await db.Disbursements
+            page = Math.Max(page, 1);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var query = db.Disbursements.AsNoTracking();
+
+            var totalCount = await query.CountAsync();
+
+            var rows = await query
                 .OrderByDescending(x => x.DisbursementDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            var result = new List<DisbursementDto>();
+            var result = mapper.Map<List<DisbursementDto>>(rows);
 
-            foreach (var item in disbursements)
-            {
-                result.Add(new DisbursementDto
-                {
-                    DealId = item.DealId,
-                    DisburseAmount = item.DisburseAmount,
-                    BankPartner = item.BankPartner
-                });
-            }
-
-            return result;
+            return PagedResult<DisbursementDto>.Create(
+                result, page, pageSize, totalCount);
         }
     }
 }

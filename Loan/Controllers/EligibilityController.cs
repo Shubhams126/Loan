@@ -1,5 +1,8 @@
 ﻿using Loan.Application.Interface;
+using Loan.Application.DTOs;
 using Loan.Domain.Models;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Loan.Controllers
@@ -14,7 +17,8 @@ namespace Loan.Controllers
             this.service = service;
         }
 
-        [HttpPost("check/{customerId}/{tenureMonths}")]
+        [HttpPost]
+        [Route("check/{customerId}/{tenureMonths}")]
         public async Task<IActionResult> CheckEligibility(int customerId, int tenureMonths)
         {
             var eligibility = await service.CheckEligibility(customerId, tenureMonths);
@@ -28,6 +32,9 @@ namespace Loan.Controllers
             {
                 eligibility.EligibilityId,
                 eligibility.CustomerId,
+                CustomerName = eligibility.Customer == null? string.Empty: eligibility.Customer.FirstName + " " + eligibility.Customer.LastName,
+                PanNumber = eligibility.Customer?.Pan ?? string.Empty,
+                MonthlyIncome = eligibility.Customer?.MonthlyIncome ?? 0,
                 eligibility.CibilScore,
                 eligibility.IsEligible,
                 eligibility.LoanAmount,
@@ -43,6 +50,58 @@ namespace Loan.Controllers
             };
 
             return Ok(response);
+        }
+
+        [HttpGet]
+        [Route("manual-reviews")]
+        public async Task<IActionResult> GetManualReviews()
+        {
+            var reviews = await service.GetManualReviews();
+            return Ok(new ApiResponse<List<ManualReviewDto>>
+            {
+                Success = true,
+                Message = "Manual review customers retrieved successfully",
+                Data = reviews,
+                Error = null
+            });
+        }
+
+        [HttpPost]
+        [Route("manual-review/decision")]
+        public async Task<IActionResult> DecideManualReview(ManualReviewDecisionDto decision)
+        {
+            if (decision.Decision != "Approved" && decision.Decision != "Rejected")
+            {
+                return BadRequest("Decision must be Approved or Rejected");
+            }
+
+            var officerIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(officerIdValue, out int officerId))
+            {
+                return Unauthorized("Loan officer identity was not found");
+            }
+
+            var result = await service.DecideManualReview(decision, officerId);
+            if (result == null)
+            {
+                return NotFound("Only a customer with Manual Review status can be approved or rejected");
+            }
+
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Manual review decision saved successfully",
+                Data = new
+                {
+                    result.EligibilityId,
+                    result.CustomerId,
+                    result.CibilScore,
+                    result.IsEligible,
+                    result.LoanAmount,
+                    result.RejectionReason
+                },
+                Error = null
+            });
         }
     }
 }
