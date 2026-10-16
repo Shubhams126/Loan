@@ -15,7 +15,8 @@ namespace Loan.Controllers
             this.service = service;
         }
 
-        [HttpPost("generate/{customerId}")]
+        [HttpPost]
+        [Route("generate/{customerId}")]
         public async Task<IActionResult> GenerateScoreCard(int customerId)
         {
             var scoreCard = await service.GenerateScoreCard(customerId);
@@ -44,7 +45,8 @@ namespace Loan.Controllers
             return Ok(response);
         }
 
-        [HttpGet("{customerId}")]
+        [HttpGet]
+        [Route("get/{customerId}")]
         public async Task<IActionResult> GetScoreCard(int customerId)
         {
             var scoreCard = await service.GetScoreCard(customerId);

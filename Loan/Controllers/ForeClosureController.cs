@@ -1,5 +1,7 @@
-﻿using Loan.Application.DTOs;
+﻿using Loan.Application.ApisResponses;
+using Loan.Application.DTOs;
 using Loan.Application.Interface;
+using Loan.Domain.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,35 +19,37 @@ namespace Loan.Controllers
 
         [HttpPost]
         [Route("CreateForeClousre")]
-        public async Task<IActionResult> CreateForeClosureRequest(CreateForeclosureDto dto)
+        public async Task<APIResponse<IActionResult>> CreateForeClosureRequest(CreateForeclosureDto dto)
         {
            var res= await service.CreateForeClosureRequest(dto);
-            return Ok(res);
+            return APIResponse<IActionResult>.SuccessResponse(null,"ForeClosure Request Added Successfully");
         }
 
+        
         [HttpGet]
         [Route("GetForeClousres")]
-        public async Task<IActionResult> GetRequests()
+        public async Task<APIResponse<List<ForeClosureRequest>>> GetRequests()
         {
             var req=await service.GetForeClosureRequests();
-            return Ok(req);
+            return APIResponse<List<ForeClosureRequest>>.SuccessResponse(req,"Request Success");
         }
 
         [HttpPut]
         [Route("UpdateForeClousre")]
-        public async Task<IActionResult> UpdateRequest(int id, string s)
+        public async Task<APIResponse<IActionResult>> UpdateRequest(int id, string s)
         {
-            var req = await service.UpdateForeClosuere(id, s);
-            return Ok(req);
+            await service.UpdateForeClosuere(id, s);
+            return APIResponse<IActionResult>.SuccessResponse(null,"Updated Successfully");
 
         }
 
         [HttpPost]
         [Route("MakeForeClousrePayment")]
-        public async Task<IActionResult> MakeForeClousrePayment(int id)
+        public async Task<APIResponse<IActionResult>> MakeForeClousrePayment(int id)
         {
             var rq = await service.PayForeClosure(id);
-            return Ok(rq);
+            return APIResponse<IActionResult>.SuccessResponse(null,"Payment Done Successfully");
         }
     }
 }
+    
