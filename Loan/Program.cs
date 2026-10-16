@@ -88,16 +88,16 @@ builder.Services.AddAuthentication(options =>
     options.DefaultAuthenticateScheme =
         JwtBearerDefaults.AuthenticationScheme;
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("MyApp", policy =>
-    {
-        policy.WithOrigins("http://localhost:4200")
-        .AllowAnyMethod()
-        .AllowAnyHeader()
-        .AllowCredentials();
-    });
-});
+//builder.Services.AddCors(options =>
+//{
+//    options.AddPolicy("MyApp", policy =>
+//    {
+//        policy.WithOrigins("http://localhost:4200")
+//        .AllowAnyMethod()
+//        .AllowAnyHeader()
+//        .AllowCredentials();
+//    });
+//});
 
     options.DefaultChallengeScheme =
         JwtBearerDefaults.AuthenticationScheme;
