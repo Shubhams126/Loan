@@ -4,6 +4,7 @@ using Loan.Application.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Loan.Controllers
 {
@@ -22,9 +23,34 @@ namespace Loan.Controllers
         [HttpPost("upload")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> Upload([FromForm] string documentType, /*[FromForm]*/ IFormFile file)
+
         {
-            if (dto.File == null || dto.File.Length == 0)
-                return BadRequest("Please select a file.");
+            var customerIdClaim = User.FindFirst("CustomerId")?.Value;
+
+            if (!int.TryParse(customerIdClaim, out int customerId))
+            {
+                return Unauthorized(new
+                {
+                    message = "Customer ID not found in token."
+                });
+            }
+
+            if (file == null)
+            {
+                return BadRequest(new { message = "Please select a file." });
+            }
+
+            using var stream = file.OpenReadStream();
+
+            string result = await service.UploadDocument(customerId, documentType, file.FileName, stream, file.Length);
+
+            if (result != "Document uploaded successfully.")
+            {
+                return BadRequest(new { message = result });
+            }
+
+            return Ok(new { message = result });
+        }
 
             using var stream = dto.File.OpenReadStream();
 
