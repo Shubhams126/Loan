@@ -1,57 +1,53 @@
-﻿using Loan.Application.DTOs;
+
+using AutoMapper;
+using Loan.Application.DTOs;
 using Loan.Application.Interface;
 using Loan.Domain.Models;
 using Loan.Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
+
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
-namespace Loan.Application.Services
+namespace Loan.Infrastructure.Services
 {
     public class SanctionLetterService : ISanctionLetterService
     {
         private readonly AppDbContext db;
-        private readonly IWebHostEnvironment env;
+        private readonly IMapper mapper;
+        private readonly IEmailService emailService;
+        private readonly IWebHostEnvironment environment;
 
         public SanctionLetterService(
             AppDbContext db,
-            IWebHostEnvironment env)
+            IMapper mapper,
+            IEmailService emailService,
+            IWebHostEnvironment environment)
         {
             this.db = db;
-            this.env = env;
+            this.mapper = mapper;
+            this.emailService = emailService;
+            this.environment = environment;
         }
 
-        public async Task<List<ApprovedLoanDto>> GetApprovedLoansAsync()
+        // 1. Get approved loans
+        public async Task<List<LoanApplyDto>> GetApprovedLoansAsync()
         {
             var loans = await db.LoanDeals
-                .Where(x => x.CurrentStatus == "Approved"
-                    && x.ApprovedAmount > 0)
+                .AsNoTracking()
+                .Include(x => x.Customer)
+                .Where(x =>
+                    x.CurrentStatus == "Approved" &&
+                    x.ApprovedAmount > 0)
                 .OrderByDescending(x => x.AppliedDate)
                 .ToListAsync();
 
-            var result = new List<ApprovedLoanDto>();
-
-            foreach (var loan in loans)
-            {
-                result.Add(new ApprovedLoanDto
-                {
-                    DealId = loan.DealId,
-                    CustomerId = loan.CustomerId,
-                    LoanType = loan.LoanType,
-                    LoanAmount = loan.LoanAmount,
-                    ApprovedAmount = loan.ApprovedAmount,
-                    InterestRate = loan.InterestRate,
-                    TenureMonths = loan.TenureMonths,
-                    EmiAmount = loan.EmiAmount,
-                    AppliedDate = loan.AppliedDate
-                });
-            }
-
-            return result;
+            return mapper.Map<List<LoanApplyDto>>(loans);
         }
 
+        // 2. Generate, save and email sanction letter
         public async Task<SanctionLetterDocumentDto>
             GenerateSanctionLetterAsync(int dealId)
         {
@@ -61,48 +57,45 @@ namespace Loan.Application.Services
 
             if (loan == null)
             {
-                throw new KeyNotFoundException(
-                    "Loan deal was not found.");
+                throw new KeyNotFoundException("Loan deal not found.");
             }
 
-            if (loan.CurrentStatus != "Approved")
+            if (loan.CurrentStatus != "Approved" ||
+                loan.ApprovedAmount <= 0)
             {
                 throw new InvalidOperationException(
-                    "A sanction letter can only be generated for an approved loan.");
+                    "Only approved loans with an approved amount can receive a sanction letter.");
             }
 
-            if (loan.ApprovedAmount <= 0)
+            if (loan.Customer == null)
             {
                 throw new InvalidOperationException(
-                    "The approved loan amount must be greater than zero.");
+                    "Customer details could not be found.");
             }
 
-            var existingLetter = await db.SanctionLetters
-                .FirstOrDefaultAsync(x => x.DealId == dealId);
-
-            if (existingLetter != null)
+            if (string.IsNullOrWhiteSpace(loan.Customer.Email))
             {
                 throw new InvalidOperationException(
-                    "A sanction letter already exists for this loan deal.");
+                    "Customer email address is missing.");
             }
 
-            QuestPDF.Settings.License = LicenseType.Community;
-
+            // Create output directory
             var documentsFolder = Path.Combine(
-                env.ContentRootPath,
-                "wwwroot",
+                environment.WebRootPath ?? environment.ContentRootPath,
                 "Documents");
 
             Directory.CreateDirectory(documentsFolder);
 
-            var fileName = $"SanctionLetter_{dealId}.pdf";
+            var fileName = $"SanctionLetter_{loan.DealId}.pdf";
             var filePath = Path.Combine(documentsFolder, fileName);
 
-            var customerName = loan.Customer == null
-                ? $"Customer {loan.CustomerId}"
-                : $"{loan.Customer.FirstName} {loan.Customer.LastName}".Trim();
+            // Generate PDF
+            QuestPDF.Settings.License = LicenseType.Community;
 
-            QuestPDF.Fluent.Document.Create(container =>
+            var customerName =
+                $"{loan.Customer.FirstName} {loan.Customer.LastName}".Trim();
+
+            Document.Create(container =>
             {
                 container.Page(page =>
                 {
@@ -116,25 +109,26 @@ namespace Loan.Application.Services
                             column.Item()
                                 .AlignCenter()
                                 .Text("FINCORE")
+                                .FontSize(24)
                                 .Bold()
-                                .FontSize(24);
+                                .FontColor(Colors.Blue.Darken2);
 
                             column.Item()
                                 .AlignCenter()
                                 .Text("LOAN SANCTION LETTER")
-                                .Bold()
-                                .FontSize(16);
+                                .FontSize(16)
+                                .Bold();
 
-                            column.Item()
-                                .PaddingTop(10)
-                                .LineHorizontal(1);
+                            column.Item().PaddingTop(10)
+                                .LineHorizontal(1)
+                                .LineColor(Colors.Grey.Medium);
                         });
 
                     page.Content()
                         .PaddingVertical(20)
                         .Column(column =>
                         {
-                            column.Spacing(12);
+                            column.Spacing(10);
 
                             column.Item()
                                 .AlignRight()
@@ -145,8 +139,7 @@ namespace Loan.Application.Services
 
                             column.Item()
                                 .Text(
-                                    "We are pleased to inform you that your loan application has been approved. " +
-                                    "The sanctioned loan details are provided below.");
+                                    "We are pleased to inform you that your loan application has been approved. Please find the sanctioned loan details below.");
 
                             column.Item()
                                 .PaddingTop(10)
@@ -162,18 +155,20 @@ namespace Loan.Application.Services
                                     {
                                         table.Cell()
                                             .Border(1)
+                                            .BorderColor(Colors.Grey.Lighten1)
                                             .Padding(8)
                                             .Text(label)
-                                            .SemiBold();
+                                            .Bold();
 
                                         table.Cell()
                                             .Border(1)
+                                            .BorderColor(Colors.Grey.Lighten1)
                                             .Padding(8)
                                             .Text(value);
                                     }
 
-                                    AddRow("Loan Deal ID", loan.DealId.ToString());
-                                    AddRow("Customer ID", loan.CustomerId.ToString());
+                                    AddRow("Deal ID", loan.DealId.ToString());
+                                    AddRow("Customer Name", customerName);
                                     AddRow("Loan Type", loan.LoanType);
                                     AddRow(
                                         "Requested Amount",
@@ -185,7 +180,7 @@ namespace Loan.Application.Services
 
                                     AddRow(
                                         "Interest Rate",
-                                        $"{loan.InterestRate}% per annum");
+                                        $"{loan.InterestRate}%");
 
                                     AddRow(
                                         "Tenure",
@@ -194,97 +189,128 @@ namespace Loan.Application.Services
                                     AddRow(
                                         "Monthly EMI",
                                         loan.EmiAmount.ToString("C2"));
-
-                                    AddRow("Loan Status", loan.CurrentStatus);
                                 });
 
                             column.Item()
                                 .PaddingTop(15)
                                 .Text(
-                                    "The loan is subject to the applicable terms and conditions " +
-                                    "of the lending institution.");
+                                    "Please retain this letter for your records. Loan disbursement will be subject to the applicable loan agreement and bank requirements.");
 
                             column.Item()
-                                .PaddingTop(20)
+                                .PaddingTop(15)
                                 .Text("Regards,");
 
                             column.Item()
-                                .Text("Loan Department")
+                                .Text("FINCORE Loan Department")
                                 .Bold();
-
-                            column.Item()
-                                .Text("FINCORE");
                         });
 
                     page.Footer()
                         .AlignCenter()
                         .Text(
-                            "This document is generated electronically by FINCORE.")
-                        .FontSize(9);
+                            "This is a system-generated sanction letter.")
+                        .FontSize(9)
+                        .FontColor(Colors.Grey.Darken1);
                 });
             }).GeneratePdf(filePath);
 
-            try
+            var existingLetter = await db.SanctionLetters
+                .FirstOrDefaultAsync(x => x.DealId == loan.DealId);
+
+            if (existingLetter == null)
             {
-                var sanctionLetter = new SanctionLetter
+                existingLetter = new SanctionLetter
                 {
-                    DealId = loan.DealId,
-                    LoanAmount = loan.ApprovedAmount,
-                    InterestRate = loan.InterestRate,
-                    TenureMonths = loan.TenureMonths,
-                    EmiAmount = loan.EmiAmount,
-                    CreatedAt = DateTime.Now
+                    DealId = loan.DealId
                 };
 
-                db.SanctionLetters.Add(sanctionLetter);
-
-                await db.SaveChangesAsync();
-
-                return new SanctionLetterDocumentDto
-                {
-                    DealId = loan.DealId,
-                    LoanAmount = loan.ApprovedAmount,
-                    InterestRate = loan.InterestRate,
-                    TenureMonths = loan.TenureMonths,
-                    EmiAmount = loan.EmiAmount,
-                    CreatedAt = sanctionLetter.CreatedAt,
-                    FileName = fileName,
-                    Message = "Sanction letter generated successfully."
-                };
+                db.SanctionLetters.Add(existingLetter);
             }
-            catch
-            {
-                if (File.Exists(filePath))
-                {
-                    File.Delete(filePath);
-                }
 
-                throw;
-            }
+            await db.SaveChangesAsync();
+
+            await emailService.SendEmailWithAttachmentAsync(
+                loan.Customer.Email,
+                $"FINCORE Loan Sanction Letter - Deal #{loan.DealId}",
+                $"Dear {customerName},{Environment.NewLine}{Environment.NewLine}" +
+                "Your loan has been approved. Please find your sanction letter " +
+                "attached as a PDF document." +
+                $"{Environment.NewLine}{Environment.NewLine}" +
+                "Regards," + Environment.NewLine +
+                "FINCORE Loan Department",
+                filePath,
+                fileName);
+
+            var response =
+                mapper.Map<SanctionLetterDocumentDto>(existingLetter);
+
+            response.FileName = fileName;
+            response.Message =
+                "Sanction letter generated and emailed successfully.";
+
+            return response;
         }
 
         public async Task<SanctionLetterDocumentDto?>
             GetSanctionLetterAsync(int dealId)
         {
-            var sanctionLetter = await db.SanctionLetters
+            var letter = await db.SanctionLetters
+                .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.DealId == dealId);
 
-            if (sanctionLetter == null)
+            if (letter == null)
             {
                 return null;
             }
 
-            return new SanctionLetterDocumentDto
+            var response =
+                mapper.Map<SanctionLetterDocumentDto>(letter);
+
+            response.FileName = $"SanctionLetter_{dealId}.pdf";
+
+            return response;
+        }
+
+     public async Task<PagedResult<ApprovedLoanDto>> GetApprovedLoansAsync(
+    int page,
+    int pageSize)
+        {
+            if (page < 1)
             {
-                DealId = sanctionLetter.DealId,
-                LoanAmount = sanctionLetter.LoanAmount,
-                InterestRate = sanctionLetter.InterestRate,
-                TenureMonths = sanctionLetter.TenureMonths,
-                EmiAmount = sanctionLetter.EmiAmount,
-                CreatedAt = sanctionLetter.CreatedAt,
-                FileName = $"SanctionLetter_{dealId}.pdf",
-                Message = "Sanction letter retrieved successfully."
+                page = 1;
+            }
+
+            if (pageSize < 1)
+            {
+                pageSize = 10;
+            }
+
+            var query = db.LoanDeals
+                .AsNoTracking()
+                .Where(x =>
+                    x.CurrentStatus == "Approved" &&
+                    x.ApprovedAmount > 0);
+
+            var totalCount = await query.CountAsync();
+
+            var loans = await query
+                .OrderByDescending(x => x.AppliedDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var items = mapper.Map<List<ApprovedLoanDto>>(loans);
+
+            return new PagedResult<ApprovedLoanDto>
+            {
+                Items = items,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling(
+                    totalCount / (double)pageSize)
             };
         }
+
     }
 }

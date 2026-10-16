@@ -1,58 +1,101 @@
 
-using System.Text;
-using Hangfire;
-using Hangfire.SqlServer;
 using Loan.Application.Interface;
-using Loan.Application.Services;
-using Loan.Domain.Models;
+using Loan.Application.Mapping;
 using Loan.Infrastructure.Data;
 using Loan.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-
+using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Controllers and Swagger
-builder.Services.AddControllers();
-
-
-builder.Services.AddScoped<IEmiPaymentService, EmiPaymentService>();
-builder.Services.AddScoped<IForeClosureService, ForeClosureService>();
-
-builder.Services.AddScoped<IPaymentHistroyService, PaymentHistroyService>();
-
-
-
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-// Database configuration
+// 1. Database connection
 var connectionString = builder.Configuration.GetConnectionString("dbconn");
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {
     throw new InvalidOperationException(
-        "Connection string 'dbconn' is missing in appsettings.json.");
+        "Connection string 'dbconn' was not found in appsettings.json.");
 }
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 
+// 2. AutoMapper
+builder.Services.AddAutoMapper(cfg =>
+{
+    cfg.AddProfile<LoanMappingProfile>();
+});
 
+// 3. Controllers and Swagger
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// 4. CORS for Angular
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("MyApp", policy =>
+    options.AddPolicy("AngularPolicy", policy =>
     {
-        policy.WithOrigins("http://localhost:4200")
-        .AllowAnyMethod()
-        .AllowAnyHeader()
-        .AllowCredentials();
+        policy
+            .WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
+// 5. JWT authentication
+var jwtKey = builder.Configuration["Jwt:Key"];
+
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    throw new InvalidOperationException(
+        "JWT key 'Jwt:Key' was not found in appsettings.json.");
+}
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
+
+// 6. Authorization
+builder.Services.AddAuthorization();
+
+// 7. Rate limiting
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddFixedWindowLimiter("api", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 100;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+        limiterOptions.AutoReplenishment = true;
+    });
+});
+
+// 8. Application service registrations
 builder.Services.AddScoped<IApplyLoanService, ApplyLoanService>();
+builder.Services.AddScoped<ILoanDealService, LoanDealService>();
 builder.Services.AddScoped<ISanctionLetterService, SanctionLetterService>();
 builder.Services.AddScoped<IDisbursementService, DisbursementService>();
 builder.Services.AddScoped<ICibilService, CibilService>();
@@ -60,104 +103,34 @@ builder.Services.AddScoped<IScoreCardService, ScoreCardService>();
 builder.Services.AddScoped<IEligibilityService, EligibilityService>();
 builder.Services.AddScoped<IEmiPaymentService, EmiPaymentService>();
 builder.Services.AddScoped<IForeClosureService, ForeClosureService>();
-
-// Loan account services
-builder.Services.AddScoped<ILoanAccountService, LoanAccountService>();
-builder.Services.AddScoped<IEmiScheduleService, EmiScheduleService>();
-
-// Authentication and email services
+builder.Services.AddScoped<IPaymentHistroyService, PaymentHistroyService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<JwtTokenService>();
-
 builder.Services.AddScoped<IKycService, KycService>();
 
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("MyApp", policy =>
-    { 
-    policy.WithOrigins("http://localhost:4200")
-    .AllowAnyMethod()
-    .AllowAnyHeader()
-    .AllowCredentials();
-});
-});
-
-// JWT configuration
-var jwtKey = builder.Configuration["Jwt:Key"];
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
-var jwtAudience = builder.Configuration["Jwt:Audience"];
-
-if (string.IsNullOrWhiteSpace(jwtKey) ||
-    string.IsNullOrWhiteSpace(jwtIssuer) ||
-    string.IsNullOrWhiteSpace(jwtAudience))
-{
-    throw new InvalidOperationException(
-        "JWT Key, Issuer or Audience is missing in appsettings.json.");
-}
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme =
-        JwtBearerDefaults.AuthenticationScheme;
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("MyApp", policy =>
-    {
-        policy.WithOrigins("http://localhost:4200")
-        .AllowAnyMethod()
-        .AllowAnyHeader()
-        .AllowCredentials();
-    });
-});
-
-    options.DefaultChallengeScheme =
-        JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidIssuer = jwtIssuer,
-        ValidateAudience = true,
-        ValidAudience = jwtAudience,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtKey)),
-        ClockSkew = TimeSpan.Zero
-    };
-});
-
-// Hangfire background jobs
-builder.Services.AddHangfire(config =>
-    config.UseSqlServerStorage(connectionString));
-
-builder.Services.AddHangfireServer();
-
-// Authorization
-builder.Services.AddAuthorization();
+// 9. JWT token service
+builder.Services.AddScoped<JwtTokenService>();
 
 var app = builder.Build();
 
-app.UseCors("AllowAngular");
-
-// HTTP request pipeline
+// 10. HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-app.UseHangfireDashboard();
+// app.UseHttpsRedirection();
+
+app.UseCors("AngularPolicy");
+
+app.UseStaticFiles();
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseCors("MyApp");
+
 app.MapControllers();
 
 app.Run();
