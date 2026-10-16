@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Loan.Infrastructure.Services
 {
-
     public class LoanDealService : ILoanDealService
     {
         private readonly AppDbContext db;
@@ -20,7 +19,6 @@ namespace Loan.Infrastructure.Services
             this.mapper = mapper;
         }
 
-
         public async Task<PagedResult<LoanApplyDto>>
             GetPendingLoansAsync(int page, int pageSize)
         {
@@ -29,6 +27,7 @@ namespace Loan.Infrastructure.Services
 
             var query = db.LoanDeals
                 .AsNoTracking()
+                .Include(x => x.Customer)
                 .Where(x =>
                     x.CurrentStatus == "Pending" ||
                     x.CurrentStatus == "Manual Review");
@@ -41,23 +40,49 @@ namespace Loan.Infrastructure.Services
                 .Take(pageSize)
                 .ToListAsync();
 
-            return PagedResult<LoanApplyDto>.Create(
-                mapper.Map<List<LoanApplyDto>>(loans),
-                page,
-                pageSize,
-                totalCount);
-        }
+            var items = mapper.Map<List<LoanApplyDto>>(loans);
 
+            for (int i = 0; i < loans.Count; i++)
+            {
+                var loan = loans[i];
+                var customer = loan.Customer;
+
+                items[i].CustomerId = loan.CustomerId;
+                items[i].CustomerName = customer == null
+                    ? string.Empty
+                    : $"{customer.FirstName} {customer.LastName}".Trim();
+
+                items[i].MonthlyIncome = customer?.MonthlyIncome ?? 0;
+                items[i].BankName = loan.BankName;
+            }
+
+            return PagedResult<LoanApplyDto>.Create(
+                items, page, pageSize, totalCount);
+        }
 
         public async Task<LoanApplyDto?> GetLoanByIdAsync(int dealId)
         {
             var loan = await db.LoanDeals
                 .AsNoTracking()
+                .Include(x => x.Customer)
                 .FirstOrDefaultAsync(x => x.DealId == dealId);
 
-            return loan == null
-                ? null
-                : mapper.Map<LoanApplyDto>(loan);
+            if (loan == null)
+            {
+                return null;
+            }
+
+            var result = mapper.Map<LoanApplyDto>(loan);
+
+            result.CustomerId = loan.CustomerId;
+            result.CustomerName = loan.Customer == null
+                ? string.Empty
+                : $"{loan.Customer.FirstName} {loan.Customer.LastName}".Trim();
+
+            result.MonthlyIncome = loan.Customer?.MonthlyIncome ?? 0;
+            result.BankName = loan.BankName;
+
+            return result;
         }
 
         public async Task<string> EvaluateCibilAsync(int dealId)
@@ -74,7 +99,6 @@ namespace Loan.Infrastructure.Services
             {
                 return $"Cannot evaluate this loan because its status is {loan.CurrentStatus}.";
             }
-
 
             var cibilReport = await db.CibilReports
                 .AsNoTracking()
@@ -109,7 +133,6 @@ namespace Loan.Infrastructure.Services
             }
             else if (score >= 650 && score <= 799)
             {
-
                 loan.CurrentStatus = "Manual Review";
 
                 await db.SaveChangesAsync();
@@ -118,7 +141,6 @@ namespace Loan.Infrastructure.Services
             }
             else
             {
-                // Automatically reject
                 loan.CurrentStatus = "Rejected";
                 loan.ApprovedAmount = 0;
                 loan.RejectionReason =
@@ -133,8 +155,7 @@ namespace Loan.Infrastructure.Services
 
         public async Task<bool> ApproveLoanAsync(
             int dealId,
-            LoanDealReviewDto dto,
-            int officerId)
+            LoanDealReviewDto dto)
         {
             var loan = await db.LoanDeals
                 .FirstOrDefaultAsync(x => x.DealId == dealId);
@@ -161,24 +182,14 @@ namespace Loan.Infrastructure.Services
                 loan.InterestRate,
                 loan.TenureMonths);
 
-            db.DealReviews.Add(new DealReview
-            {
-                DealId = loan.DealId,
-                OfficerId = officerId,
-                Status = "Approved",
-                Remarks = "Loan approved after officer review.",
-                ReviewedAt = DateTime.Now
-            });
-
             await db.SaveChangesAsync();
+
             return true;
         }
 
-
         public async Task<bool> RejectLoanAsync(
             int dealId,
-            LoanDealReviewDto dto,
-            int officerId)
+            LoanDealReviewDto dto)
         {
             var loan = await db.LoanDeals
                 .FirstOrDefaultAsync(x => x.DealId == dealId);
@@ -195,18 +206,11 @@ namespace Loan.Infrastructure.Services
             loan.ApprovedAmount = 0;
             loan.RejectionReason = dto.RejectionReason.Trim();
 
-            db.DealReviews.Add(new DealReview
-            {
-                DealId = loan.DealId,
-                OfficerId = officerId,
-                Status = "Rejected",
-                Remarks = dto.RejectionReason.Trim(),
-                ReviewedAt = DateTime.Now
-            });
-
             await db.SaveChangesAsync();
+
             return true;
         }
+
 
         private static decimal CalculateEmi(
             decimal amount,
@@ -223,7 +227,10 @@ namespace Loan.Infrastructure.Services
             var factor = Math.Pow(1 + monthlyRate, months);
 
             return Math.Round(
-                (decimal)((double)amount * monthlyRate * factor / (factor - 1)), 2);
+                (decimal)(
+                    (double)amount * monthlyRate * factor /
+                    (factor - 1)),
+                2);
         }
     }
 }

@@ -10,7 +10,6 @@ namespace Loan.Controllers;
 [ApiController]
 [EnableRateLimiting("api")]
 [Route("api/[controller]")]
-//[Authorize(Roles = "User,Customer")]
 public class DisbursementController : ControllerBase
 {
     private readonly IDisbursementService service;

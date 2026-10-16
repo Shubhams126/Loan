@@ -7,14 +7,11 @@ namespace Loan.Application.Interface
     {
         Task<List<LoanApplyDto>> GetApprovedLoansAsync();
 
-        Task<PagedResult<ApprovedLoanDto>> GetApprovedLoansAsync(
-            int page,
-            int pageSize);
+        Task<PagedResult<ApprovedLoanDto>> GetApprovedLoansAsync(int page, int pageSize);
 
-        Task<SanctionLetterDocumentDto> GenerateSanctionLetterAsync(
-            int dealId);
+        Task<SanctionLetterDocumentDto> GenerateSanctionLetterAsync(int dealId);
 
-        Task<SanctionLetterDocumentDto?> GetSanctionLetterAsync(
-            int dealId);
+        Task<SanctionLetterDocumentDto?> GetSanctionLetterAsync(int dealId);
     }
 }
+

@@ -19,7 +19,6 @@ namespace Loan.Infrastructure.Services
             this.mapper = mapper;
         }
 
-  
         public async Task<PagedResult<DisbursementDto>>
             GetPendingDisbursementsAsync(int page, int pageSize)
         {
@@ -28,6 +27,7 @@ namespace Loan.Infrastructure.Services
 
             var query = db.LoanDeals
                 .AsNoTracking()
+                .Include(x => x.Customer)
                 .Where(x =>
                     x.CurrentStatus == "Approved" &&
                     x.ApprovedAmount > 0 &&
@@ -46,12 +46,27 @@ namespace Loan.Infrastructure.Services
                 .Take(pageSize)
                 .ToListAsync();
 
-            var result = mapper.Map<List<DisbursementDto>>(loans);
+            var items = mapper.Map<List<DisbursementDto>>(loans);
+
+            for (int i = 0; i < loans.Count; i++)
+            {
+                var loan = loans[i];
+                var customer = loan.Customer;
+
+                items[i].DealId = loan.DealId;
+                items[i].DisburseAmount = loan.ApprovedAmount;
+                items[i].CustomerId = loan.CustomerId;
+                items[i].CustomerName = customer == null
+                    ? string.Empty
+                    : $"{customer.FirstName} {customer.LastName}".Trim();
+
+                items[i].MonthlyIncome = customer?.MonthlyIncome ?? 0;
+                items[i].BankName = loan.BankName;
+            }
 
             return PagedResult<DisbursementDto>.Create(
-                result, page, pageSize, totalCount);
+                items, page, pageSize, totalCount);
         }
-
 
         public async Task<DisbursementDto> DisburseLoanAsync(
             DisbursementDto dto)
@@ -84,8 +99,7 @@ namespace Loan.Infrastructure.Services
 
             if (loan == null)
             {
-                throw new KeyNotFoundException(
-                    "Loan deal not found.");
+                throw new KeyNotFoundException("Loan deal not found.");
             }
 
             if (loan.CurrentStatus != "Approved")
@@ -115,31 +129,28 @@ namespace Loan.Infrastructure.Services
                     "Generate the sanction letter before disbursing the loan.");
             }
 
-            var alreadyDisbursed = await db.Disbursements
-                .AnyAsync(x => x.DealId == dto.DealId);
-
-            if (alreadyDisbursed)
+            if (await db.Disbursements.AnyAsync(
+                    x => x.DealId == dto.DealId))
             {
                 throw new InvalidOperationException(
                     "This loan has already been disbursed.");
             }
 
-            var accountExists = await db.LoanAccounts
-                .AnyAsync(x => x.DealId == dto.DealId);
-
-            if (accountExists)
+            if (await db.LoanAccounts.AnyAsync(
+                    x => x.DealId == dto.DealId))
             {
                 throw new InvalidOperationException(
                     "A loan account already exists for this deal.");
             }
 
-            var customerExists = await db.Customers
-                .AnyAsync(x => x.CustomerId == loan.CustomerId);
+            var customer = await db.Customers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.CustomerId == loan.CustomerId);
 
-            if (!customerExists)
+            if (customer == null)
             {
-                throw new KeyNotFoundException(
-                    "Customer not found.");
+                throw new KeyNotFoundException("Customer not found.");
             }
 
             var disbursementDate = DateTime.Now;
@@ -169,8 +180,7 @@ namespace Loan.Infrastructure.Services
                     LoanAmount = loan.ApprovedAmount,
                     OutstandingPrincipal = loan.ApprovedAmount,
                     LoanStatus = "Active",
-                    InterestRate =
-                        Convert.ToDecimal(loan.InterestRate),
+                    InterestRate = Convert.ToDecimal(loan.InterestRate),
                     TenureMonths = loan.TenureMonths,
                     EmiAmount = loan.EmiAmount,
                     DisbursementDate = disbursementDate,
@@ -180,13 +190,22 @@ namespace Loan.Infrastructure.Services
 
                 db.LoanAccounts.Add(account);
 
-
                 loan.CurrentStatus = "Active";
 
                 await db.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return mapper.Map<DisbursementDto>(disbursement);
+                var result = mapper.Map<DisbursementDto>(disbursement);
+
+                result.DealId = loan.DealId;
+                result.DisburseAmount = loan.ApprovedAmount;
+                result.CustomerId = customer.CustomerId;
+                result.CustomerName =
+                    $"{customer.FirstName} {customer.LastName}".Trim();
+                result.MonthlyIncome = customer.MonthlyIncome;
+                result.BankName = loan.BankName;
+
+                return result;
             }
             catch
             {
@@ -211,10 +230,30 @@ namespace Loan.Infrastructure.Services
                 .Take(pageSize)
                 .ToListAsync();
 
-            var result = mapper.Map<List<DisbursementDto>>(rows);
+            var items = mapper.Map<List<DisbursementDto>>(rows);
+
+            // Completed disbursement rows need their loan/customer details.
+            foreach (var item in items)
+            {
+                var loan = await db.LoanDeals
+                    .AsNoTracking()
+                    .Include(x => x.Customer)
+                    .FirstOrDefaultAsync(x => x.DealId == item.DealId);
+
+                if (loan != null)
+                {
+                    item.CustomerId = loan.CustomerId;
+                    item.CustomerName = loan.Customer == null
+                        ? string.Empty
+                        : $"{loan.Customer.FirstName} {loan.Customer.LastName}".Trim();
+
+                    item.MonthlyIncome = loan.Customer?.MonthlyIncome ?? 0;
+                    item.BankName = loan.BankName;
+                }
+            }
 
             return PagedResult<DisbursementDto>.Create(
-                result, page, pageSize, totalCount);
+                items, page, pageSize, totalCount);
         }
     }
 }
