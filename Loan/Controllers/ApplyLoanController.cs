@@ -1,15 +1,18 @@
-﻿
+
 using System.Security.Claims;
 using Loan.Application.DTOs;
 using Loan.Application.Interface;
+using Loan.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Loan.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [EnableRateLimiting("api")]
+    //[Authorize]
     public class ApplyLoanController : ControllerBase
     {
         private readonly IApplyLoanService service;
@@ -19,48 +22,110 @@ namespace Loan.Controllers
             this.service = service;
         }
 
-        [HttpGet("options")]
+        // GET: api/ApplyLoan/options
+        [HttpGet]
+        [Route("options")]
+        [AllowAnonymous]
         public IActionResult GetLoanOptions()
         {
-            return Ok(new
-            {
-                Success = true,
-                Data = service.GetLoanOptions()
-            });
+            var result = service.GetLoanOptions();
+
+            var response = ApiResponse<object>.Ok(
+                result,
+                "Loan options loaded successfully.");
+
+            return Ok(response);
         }
 
-
-        [HttpPost("apply")]
-        [Authorize(Roles = "User")]
+        // POST: api/ApplyLoan/apply
+        [HttpPost]
+        [Route("apply")]
+        //[Authorize(Roles = "User,Customer")]
         public async Task<IActionResult> ApplyLoan(
             [FromBody] LoanApplyDto dto)
         {
+            if (dto == null)
+            {
+                return BadRequest(
+                    ApiResponse<LoanApplyDto>.Fail(
+                        "Invalid loan application data."));
+            }
+        
+
+            if (User.IsInRole("Customer") &&
+                (!int.TryParse(
+                    User.FindFirstValue("CustomerId"),
+                    out var tokenCustomerId) ||
+                 tokenCustomerId != dto.CustomerId))
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    ApiResponse<LoanApplyDto>.Fail(
+                        "You can only apply for a loan using your own customer account."));
+            }
+
             var result = await service.ApplyLoanAsync(dto);
 
             if (result.DealId == 0)
             {
-                return BadRequest(new
-                {
-                    Success = false,
-                    Message = result.Message
-                });
+                return BadRequest(
+                    ApiResponse<LoanApplyDto>.Fail(
+                        result.Message ??
+                        "Loan application could not be submitted."));
             }
 
-            return Ok(new
-            {
-                Success = true,
-                Message = result.Message,
-                Data = result
-            });
+            return Ok(
+                ApiResponse<LoanApplyDto>.Ok(
+                    result,
+                    result.Message ??
+                    "Loan application submitted successfully."));
         }
+        
 
-        [HttpGet("calculate")]
-        [Authorize(Roles = "User")]
+        // GET: api/ApplyLoan/calculate?customerId=1&loanAmount=45000&tenureYears=3
+        [HttpGet]
+        [Route("calculate")]
+        //[Authorize(Roles = "User,Customer")]
         public async Task<IActionResult> CalculateLoan(
             [FromQuery] int customerId,
             [FromQuery] decimal loanAmount,
             [FromQuery] int tenureYears)
         {
+            if (customerId <= 0)
+            {
+                return BadRequest(
+                    ApiResponse<LoanCalculationDto>.Fail(
+                        "Please enter a valid Customer ID."));
+            }
+
+            if (loanAmount <= 0)
+            {
+                return BadRequest(
+                    ApiResponse<LoanCalculationDto>.Fail(
+                        "Loan amount must be greater than zero."));
+            }
+
+            if (tenureYears <= 0)
+            {
+                return BadRequest(
+                    ApiResponse<LoanCalculationDto>.Fail(
+                        "Please select a valid loan tenure."));
+            }
+
+            // If authentication is enabled, a Customer can calculate
+            // eligibility only for their own CustomerId.
+            if (User.IsInRole("Customer") &&
+                (!int.TryParse(
+                    User.FindFirstValue("CustomerId"),
+                    out var tokenCustomerId) ||
+                 tokenCustomerId != customerId))
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    ApiResponse<LoanCalculationDto>.Fail(
+                        "You can only calculate eligibility for your own customer account."));
+            }
+
             var result = await service.CalculateLoanAsync(
                 customerId,
                 loanAmount,
@@ -68,144 +133,17 @@ namespace Loan.Controllers
 
             if (result.InterestRate == 0)
             {
-                return BadRequest(new
-                {
-                    Success = false,
-                    Message = result.Message
-                });
+                return BadRequest(
+                    ApiResponse<LoanCalculationDto>.Fail(
+                        result.Message ??
+                        "Loan calculation failed."));
             }
 
-            return Ok(new
-            {
-                Success = true,
-                Data = result
-            });
-        }
-
-        [HttpGet("pending")]
-
-        public async Task<IActionResult> GetPendingLoans()
-        {
-            var loans = await service.GetPendingLoansAsync();
-
-            return Ok(new
-            {
-                Success = true,
-                Data = loans
-            });
-        }
-
-        [HttpGet("{dealId:int}")]
-   
-        public async Task<IActionResult> GetLoanById(int dealId)
-        {
-            var loan = await service.GetLoanByIdAsync(dealId);
-
-            if (loan == null)
-            {
-                return NotFound(new
-                {
-                    Success = false,
-                    Message = "Loan application not found."
-                });
-            }
-
-            return Ok(new
-            {
-                Success = true,
-                Data = loan
-            });
-        }
-
-        [HttpPut("{dealId:int}/approve")]
-    
-        public async Task<IActionResult> ApproveLoan(
-            int dealId,
-            [FromBody] LoanDealReviewDto dto)
-        {
-            int? officerId = GetOfficerId();
-
-            if (officerId == null)
-            {
-                return Unauthorized(new
-                {
-                    Success = false,
-                    Message = "Officer ID was not found in the login claims."
-                });
-            }
-
-            bool approved = await service.ApproveLoanAsync(
-                dealId,
-                dto,
-                officerId.Value);
-
-            if (!approved)
-            {
-                return BadRequest(new
-                {
-                    Success = false,
-                    Message =
-                        "Loan not found, not pending, or approved amount is invalid."
-                });
-            }
-
-            return Ok(new
-            {
-                Success = true,
-                Message = "Loan approved successfully."
-            });
-        }
-
-        [HttpPut("{dealId:int}/reject")]
-
-        public async Task<IActionResult> RejectLoan(
-            int dealId,
-            [FromBody] LoanDealReviewDto dto)
-        {
-            int? officerId = GetOfficerId();
-
-            if (officerId == null)
-            {
-                return Unauthorized(new
-                {
-                    Success = false,
-                    Message = "Officer ID was not found in the login claims."
-                });
-            }
-
-            bool rejected = await service.RejectLoanAsync(
-                dealId,
-                dto,
-                officerId.Value);
-
-            if (!rejected)
-            {
-                return BadRequest(new
-                {
-                    Success = false,
-                    Message =
-                        "Loan not found, not pending, or rejection reason is missing."
-                });
-            }
-
-            return Ok(new
-            {
-                Success = true,
-                Message = "Loan rejected successfully."
-            });
-        }
-
-        private int? GetOfficerId()
-        {
-            string? id = User.FindFirstValue(
-                ClaimTypes.NameIdentifier);
-
-            if (int.TryParse(id, out int officerId))
-            {
-                return officerId;
-            }
-
-            return null;
+            return Ok(
+                ApiResponse<LoanCalculationDto>.Ok(
+                    result,
+                    result.Message ??
+                    "Loan calculation completed successfully."));
         }
     }
 }

@@ -36,8 +36,5 @@ namespace Loan.Application.DTOs
 
         [Range(typeof(decimal), "1000", "10000000")]
         public decimal MonthlyIncome { get; set; }
-        [Range(typeof(decimal), "1000", "10000000")]
-
-        public decimal TotalMonthlyDebt { get; set; }
     }
 }

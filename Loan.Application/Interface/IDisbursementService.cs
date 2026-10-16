@@ -1,13 +1,13 @@
-﻿using Loan.Application.DTOs;
+using Loan.Application.DTOs;
 
 namespace Loan.Application.Interface
 {
     public interface IDisbursementService
     {
-        Task<List<DisbursementDto>> GetPendingDisbursementsAsync();
+        Task<PagedResult<DisbursementDto>>GetPendingDisbursementsAsync(int page, int pageSize);
 
         Task<DisbursementDto> DisburseLoanAsync(DisbursementDto dto);
 
-        Task<List<DisbursementDto>> GetDisbursementsAsync();
+        Task<PagedResult<DisbursementDto>>GetDisbursementsAsync(int page, int pageSize);
     }
 }
