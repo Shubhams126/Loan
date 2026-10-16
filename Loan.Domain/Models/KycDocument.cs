@@ -18,5 +18,6 @@ namespace Loan.Domain.Models
         public string VerificationStatus { get; set; }
 
         public Customer? Customer { get; set; }
+        public string Status { get; set; }
     }
 }

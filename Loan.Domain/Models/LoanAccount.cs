@@ -37,6 +37,7 @@ namespace Loan.Domain.Models
         public Customer? Customer { get; set; }
 
         public LoanDeal? LoanDeal { get; set; }
+        public string Status { get; set; }
         // [ForeignKey("Disbursement")]
         //  public int DisbursementId { get; set; }
 
