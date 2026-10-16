@@ -4,9 +4,8 @@ using Loan.Application.DTOs;
 using Loan.Application.Interface;
 using Loan.Domain.Models;
 using Loan.Infrastructure.Data;
-
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Hosting;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -32,7 +31,7 @@ namespace Loan.Infrastructure.Services
             this.environment = environment;
         }
 
-        // 1. Get approved loans
+        // Existing non-paged method
         public async Task<List<LoanApplyDto>> GetApprovedLoansAsync()
         {
             var loans = await db.LoanDeals
@@ -44,10 +43,67 @@ namespace Loan.Infrastructure.Services
                 .OrderByDescending(x => x.AppliedDate)
                 .ToListAsync();
 
-            return mapper.Map<List<LoanApplyDto>>(loans);
+            var items = mapper.Map<List<LoanApplyDto>>(loans);
+
+            for (int i = 0; i < loans.Count; i++)
+            {
+                var loan = loans[i];
+
+                items[i].CustomerId = loan.CustomerId;
+                items[i].CustomerName = loan.Customer == null
+                    ? string.Empty
+                    : $"{loan.Customer.FirstName} {loan.Customer.LastName}".Trim();
+
+                items[i].MonthlyIncome = loan.Customer?.MonthlyIncome ?? 0;
+                items[i].BankName = loan.BankName;
+            }
+
+            return items;
         }
 
-        // 2. Generate, save and email sanction letter
+        // Get approved loans for the officer's paged screen
+        public async Task<PagedResult<ApprovedLoanDto>> GetApprovedLoansAsync(
+            int page,
+            int pageSize)
+        {
+            page = Math.Max(page, 1);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var query = db.LoanDeals
+                .AsNoTracking()
+                .Include(x => x.Customer)
+                .Where(x =>
+                    x.CurrentStatus == "Approved" &&
+                    x.ApprovedAmount > 0);
+
+            var totalCount = await query.CountAsync();
+
+            var loans = await query
+                .OrderByDescending(x => x.AppliedDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var items = mapper.Map<List<ApprovedLoanDto>>(loans);
+
+            for (int i = 0; i < loans.Count; i++)
+            {
+                var loan = loans[i];
+
+                items[i].CustomerId = loan.CustomerId;
+                items[i].CustomerName = loan.Customer == null
+                    ? string.Empty
+                    : $"{loan.Customer.FirstName} {loan.Customer.LastName}".Trim();
+
+                items[i].MonthlyIncome = loan.Customer?.MonthlyIncome ?? 0;
+                items[i].BankName = loan.BankName;
+            }
+
+            return PagedResult<ApprovedLoanDto>.Create(
+                items, page, pageSize, totalCount);
+        }
+
+        // Generate, save and email sanction letter
         public async Task<SanctionLetterDocumentDto>
             GenerateSanctionLetterAsync(int dealId)
         {
@@ -56,9 +112,7 @@ namespace Loan.Infrastructure.Services
                 .FirstOrDefaultAsync(x => x.DealId == dealId);
 
             if (loan == null)
-            {
                 throw new KeyNotFoundException("Loan deal not found.");
-            }
 
             if (loan.CurrentStatus != "Approved" ||
                 loan.ApprovedAmount <= 0)
@@ -79,7 +133,6 @@ namespace Loan.Infrastructure.Services
                     "Customer email address is missing.");
             }
 
-            // Create output directory
             var documentsFolder = Path.Combine(
                 environment.WebRootPath ?? environment.ContentRootPath,
                 "Documents");
@@ -89,7 +142,6 @@ namespace Loan.Infrastructure.Services
             var fileName = $"SanctionLetter_{loan.DealId}.pdf";
             var filePath = Path.Combine(documentsFolder, fileName);
 
-            // Generate PDF
             QuestPDF.Settings.License = LicenseType.Community;
 
             var customerName =
@@ -119,7 +171,8 @@ namespace Loan.Infrastructure.Services
                                 .FontSize(16)
                                 .Bold();
 
-                            column.Item().PaddingTop(10)
+                            column.Item()
+                                .PaddingTop(10)
                                 .LineHorizontal(1)
                                 .LineColor(Colors.Grey.Medium);
                         });
@@ -137,9 +190,8 @@ namespace Loan.Infrastructure.Services
                             column.Item()
                                 .Text($"Dear {customerName},");
 
-                            column.Item()
-                                .Text(
-                                    "We are pleased to inform you that your loan application has been approved. Please find the sanctioned loan details below.");
+                            column.Item().Text(
+                                "We are pleased to inform you that your loan application has been approved. Please find the sanctioned loan details below.");
 
                             column.Item()
                                 .PaddingTop(10)
@@ -168,27 +220,22 @@ namespace Loan.Infrastructure.Services
                                     }
 
                                     AddRow("Deal ID", loan.DealId.ToString());
+                                    AddRow("Customer ID", loan.CustomerId.ToString());
                                     AddRow("Customer Name", customerName);
+                                    AddRow("Monthly Income",
+                                        loan.Customer.MonthlyIncome.ToString("N2"));
+                                    AddRow("Bank Name", loan.BankName);
                                     AddRow("Loan Type", loan.LoanType);
-                                    AddRow(
-                                        "Requested Amount",
-                                        loan.LoanAmount.ToString("C2"));
-
-                                    AddRow(
-                                        "Sanctioned Amount",
-                                        loan.ApprovedAmount.ToString("C2"));
-
-                                    AddRow(
-                                        "Interest Rate",
+                                    AddRow("Requested Amount",
+                                        loan.LoanAmount.ToString("N2"));
+                                    AddRow("Sanctioned Amount",
+                                        loan.ApprovedAmount.ToString("N2"));
+                                    AddRow("Interest Rate",
                                         $"{loan.InterestRate}%");
-
-                                    AddRow(
-                                        "Tenure",
+                                    AddRow("Tenure",
                                         $"{loan.TenureMonths} months");
-
-                                    AddRow(
-                                        "Monthly EMI",
-                                        loan.EmiAmount.ToString("C2"));
+                                    AddRow("Monthly EMI",
+                                        loan.EmiAmount.ToString("N2"));
                                 });
 
                             column.Item()
@@ -196,9 +243,7 @@ namespace Loan.Infrastructure.Services
                                 .Text(
                                     "Please retain this letter for your records. Loan disbursement will be subject to the applicable loan agreement and bank requirements.");
 
-                            column.Item()
-                                .PaddingTop(15)
-                                .Text("Regards,");
+                            column.Item().PaddingTop(15).Text("Regards,");
 
                             column.Item()
                                 .Text("FINCORE Loan Department")
@@ -207,8 +252,7 @@ namespace Loan.Infrastructure.Services
 
                     page.Footer()
                         .AlignCenter()
-                        .Text(
-                            "This is a system-generated sanction letter.")
+                        .Text("This is a system-generated sanction letter.")
                         .FontSize(9)
                         .FontColor(Colors.Grey.Darken1);
                 });
@@ -233,8 +277,7 @@ namespace Loan.Infrastructure.Services
                 loan.Customer.Email,
                 $"FINCORE Loan Sanction Letter - Deal #{loan.DealId}",
                 $"Dear {customerName},{Environment.NewLine}{Environment.NewLine}" +
-                "Your loan has been approved. Please find your sanction letter " +
-                "attached as a PDF document." +
+                "Your loan has been approved. Please find your sanction letter attached as a PDF document." +
                 $"{Environment.NewLine}{Environment.NewLine}" +
                 "Regards," + Environment.NewLine +
                 "FINCORE Loan Department",
@@ -259,9 +302,7 @@ namespace Loan.Infrastructure.Services
                 .FirstOrDefaultAsync(x => x.DealId == dealId);
 
             if (letter == null)
-            {
                 return null;
-            }
 
             var response =
                 mapper.Map<SanctionLetterDocumentDto>(letter);
@@ -270,47 +311,5 @@ namespace Loan.Infrastructure.Services
 
             return response;
         }
-
-     public async Task<PagedResult<ApprovedLoanDto>> GetApprovedLoansAsync(
-    int page,
-    int pageSize)
-        {
-            if (page < 1)
-            {
-                page = 1;
-            }
-
-            if (pageSize < 1)
-            {
-                pageSize = 10;
-            }
-
-            var query = db.LoanDeals
-                .AsNoTracking()
-                .Where(x =>
-                    x.CurrentStatus == "Approved" &&
-                    x.ApprovedAmount > 0);
-
-            var totalCount = await query.CountAsync();
-
-            var loans = await query
-                .OrderByDescending(x => x.AppliedDate)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            var items = mapper.Map<List<ApprovedLoanDto>>(loans);
-
-            return new PagedResult<ApprovedLoanDto>
-            {
-                Items = items,
-                Page = page,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                TotalPages = (int)Math.Ceiling(
-                    totalCount / (double)pageSize)
-            };
-        }
-
     }
 }

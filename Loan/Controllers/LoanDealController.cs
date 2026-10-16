@@ -10,7 +10,7 @@ namespace Loan.Controllers;
 [ApiController]
 [EnableRateLimiting("api")]
 [Route("api/[controller]")]
-//[Authorize(Roles = "User,Customer")]
+
 public class LoanDealController : ControllerBase
 {
     private readonly ILoanDealService service;
@@ -20,7 +20,6 @@ public class LoanDealController : ControllerBase
         this.service = service;
     }
 
-    // GET: api/LoanDeal/pending?page=1&pageSize=10
     [HttpGet("pending")]
     public async Task<ActionResult<
         ApiResponse<PagedResult<LoanApplyDto>>>>
@@ -34,7 +33,6 @@ public class LoanDealController : ControllerBase
             data, "Pending loan deals retrieved successfully."));
     }
 
-    // GET: api/LoanDeal/6
     [HttpGet("{dealId:int}")]
     public async Task<ActionResult<ApiResponse<LoanApplyDto>>>
         GetLoanById(int dealId)
@@ -112,12 +110,11 @@ public class LoanDealController : ControllerBase
         }
     }
 
-    // PUT: api/LoanDeal/6/approve
+
     [HttpPut("{dealId:int}/approve")]
-    public async Task<ActionResult<ApiResponse<object>>>
-        ApproveLoan(
-            int dealId,
-            [FromBody] LoanDealReviewDto dto)
+    public async Task<ActionResult<ApiResponse<object>>> ApproveLoan(
+        int dealId,
+        [FromBody] LoanDealReviewDto dto)
     {
         if (!ModelState.IsValid)
         {
@@ -126,12 +123,7 @@ public class LoanDealController : ControllerBase
                     "Invalid loan approval request."));
         }
 
-        // Your current service requires officerId.
-        // This value is for local testing only.
-        const int officerId = 1;
-
-        if (!await service.ApproveLoanAsync(
-                dealId, dto, officerId))
+        if (!await service.ApproveLoanAsync(dealId, dto))
         {
             return BadRequest(
                 ApiResponse<object>.Fail(
@@ -147,12 +139,10 @@ public class LoanDealController : ControllerBase
             "Loan approved successfully."));
     }
 
-    // PUT: api/LoanDeal/6/reject
     [HttpPut("{dealId:int}/reject")]
-    public async Task<ActionResult<ApiResponse<object>>>
-        RejectLoan(
-            int dealId,
-            [FromBody] LoanDealReviewDto dto)
+    public async Task<ActionResult<ApiResponse<object>>> RejectLoan(
+        int dealId,
+        [FromBody] LoanDealReviewDto dto)
     {
         if (!ModelState.IsValid)
         {
@@ -161,12 +151,7 @@ public class LoanDealController : ControllerBase
                     "Invalid loan rejection request."));
         }
 
-        // Your current service requires officerId.
-        // This value is for local testing only.
-        const int officerId = 1;
-
-        if (!await service.RejectLoanAsync(
-                dealId, dto, officerId))
+        if (!await service.RejectLoanAsync(dealId, dto))
         {
             return BadRequest(
                 ApiResponse<object>.Fail(

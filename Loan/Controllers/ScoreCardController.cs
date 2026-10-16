@@ -1,4 +1,5 @@
-﻿using Loan.Application.Interface;
+﻿
+using Loan.Application.Interface;
 using Loan.Domain.Models;
 using Microsoft.AspNetCore.Mvc;
 
