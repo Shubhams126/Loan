@@ -27,5 +27,6 @@ namespace Loan.Domain.Models
         public string? RejectionReason { get; set; }
 
         public Customer? Customer { get; set; }
+        public string Status { get; set; }
     }
 }

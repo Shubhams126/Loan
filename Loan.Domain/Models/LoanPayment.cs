@@ -30,5 +30,6 @@ namespace Loan.Domain.Models
         public string PaymentStatus { get; set; }
 
         public LoanAccount? LoanAccount { get; set; }
+        public decimal? Amount { get; set; }
     }
 }
