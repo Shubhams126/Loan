@@ -1,5 +1,6 @@
 ﻿using Loan.Application.Interface;
 using Loan.Domain.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Loan.Controllers
@@ -14,6 +15,7 @@ namespace Loan.Controllers
             this.service = service;
         }
 
+        [Authorize(Roles = "Officer")]
         [HttpPost]
         [Route("generate/{customerId}")]
         public async Task<IActionResult> GenerateScoreCard(int customerId)
@@ -44,6 +46,7 @@ namespace Loan.Controllers
             return Ok(response);
         }
 
+        [Authorize(Roles = "Officer")]
         [HttpGet]
         [Route("get/{customerId}")]
         public async Task<IActionResult> GetScoreCard(int customerId)

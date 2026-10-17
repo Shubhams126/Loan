@@ -1,30 +1,18 @@
-
 using System.Text;
 using Hangfire;
 using Hangfire.SqlServer;
 using Loan.Application.Interface;
 using Loan.Application.Services;
-using Loan.Domain.Models;
 using Loan.Infrastructure.Data;
 using Loan.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Controllers and Swagger
 builder.Services.AddControllers();
-
-
-builder.Services.AddScoped<IEmiPaymentService, EmiPaymentService>();
-builder.Services.AddScoped<IForeClosureService, ForeClosureService>();
-
-builder.Services.AddScoped<IPaymentHistroyService, PaymentHistroyService>();
-
-
-
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -40,18 +28,19 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("MyApp", policy =>
     {
         policy.WithOrigins("http://localhost:4200")
-        .AllowAnyMethod()
-        .AllowAnyHeader()
-        .AllowCredentials();
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
 
+// Application services
 builder.Services.AddScoped<IApplyLoanService, ApplyLoanService>();
 builder.Services.AddScoped<ISanctionLetterService, SanctionLetterService>();
 builder.Services.AddScoped<IDisbursementService, DisbursementService>();
@@ -69,20 +58,7 @@ builder.Services.AddScoped<IEmiScheduleService, EmiScheduleService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<JwtTokenService>();
-
 builder.Services.AddScoped<IKycService, KycService>();
-
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("MyApp", policy =>
-    { 
-    policy.WithOrigins("http://localhost:4200")
-    .AllowAnyMethod()
-    .AllowAnyHeader()
-    .AllowCredentials();
-});
-});
 
 // JWT configuration
 var jwtKey = builder.Configuration["Jwt:Key"];
@@ -101,17 +77,6 @@ builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme =
         JwtBearerDefaults.AuthenticationScheme;
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("MyApp", policy =>
-    {
-        policy.WithOrigins("http://localhost:4200")
-        .AllowAnyMethod()
-        .AllowAnyHeader()
-        .AllowCredentials();
-    });
-});
 
     options.DefaultChallengeScheme =
         JwtBearerDefaults.AuthenticationScheme;
@@ -143,8 +108,6 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-app.UseCors("AllowAngular");
-
 // HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
@@ -153,11 +116,14 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseHangfireDashboard();
+
+app.UseCors("MyApp");
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseCors("MyApp");
+
+app.UseHangfireDashboard();
+
 app.MapControllers();
 
 app.Run();

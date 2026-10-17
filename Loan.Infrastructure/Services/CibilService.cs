@@ -79,7 +79,11 @@ namespace Loan.Infrastructure.Services
             }
 
             // FOIR score
-            decimal foir = (customer.TotalMonthlyDebt / customer.MonthlyIncome) * 100;
+            decimal foir = 0;
+            if (customer.MonthlyIncome > 0)
+            {
+                foir = (customer.TotalMonthlyDebt / customer.MonthlyIncome) * 100;
+            }
 
             if (foir < 30)
             {

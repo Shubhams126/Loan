@@ -2,6 +2,7 @@
 using Loan.Domain.Models;
 using Loan.Infrastructure.Data;
 using Loan.Infrastructure.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ namespace Loan.Controllers
             this.db = db;
         }
 
+        [Authorize(Roles = "Customer")]
         [HttpPost]
         [Route("calculate/{customerId}")]
         public async Task<IActionResult> GetCibilScoreReport(int customerId)
@@ -53,6 +55,7 @@ namespace Loan.Controllers
             return Ok(response);
         }
 
+        [Authorize(Roles = "Customer")]
         [HttpGet]
         [Route("latest/{customerId}")]
         public async Task<IActionResult> GetLatestCibil(int customerId)

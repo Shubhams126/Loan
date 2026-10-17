@@ -188,7 +188,10 @@ namespace Loan.Infrastructure.Services
             }
 
             eligibility.IsEligible = decision.Decision;
-            eligibility.RejectionReason = decision.Decision == "Rejected"? (string.IsNullOrWhiteSpace(decision.RejectionReason) ? "Rejected by Loan Officer" : decision.RejectionReason): null;
+            eligibility.RejectionReason = string.IsNullOrWhiteSpace(decision.RejectionReason)
+                    ? "Rejected by Loan Officer"
+                    : decision.RejectionReason; 
+            
             await db.SaveChangesAsync();
             return eligibility;
         }

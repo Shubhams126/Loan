@@ -1,9 +1,10 @@
-﻿using Loan.Application.Interface;
-using Loan.Application.DTOs;
+﻿using Loan.Application.DTOs;
+using Loan.Application.Interface;
 using Loan.Domain.Models;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Razorpay.Api;
+using System.Security.Claims;
 
 namespace Loan.Controllers
 {
@@ -17,6 +18,7 @@ namespace Loan.Controllers
             this.service = service;
         }
 
+        [Authorize(Roles = "Customer")]
         [HttpPost]
         [Route("check/{customerId}/{tenureMonths}")]
         public async Task<IActionResult> CheckEligibility(int customerId, int tenureMonths)
@@ -28,13 +30,15 @@ namespace Loan.Controllers
                 return NotFound("Some error occurred while checking eligibility");
             }
 
+            var customer = eligibility.Customer;
+
             var result = new
             {
                 eligibility.EligibilityId,
                 eligibility.CustomerId,
-                CustomerName = eligibility.Customer == null? string.Empty: eligibility.Customer.FirstName + " " + eligibility.Customer.LastName,
-                PanNumber = eligibility.Customer?.Pan ?? string.Empty,
-                MonthlyIncome = eligibility.Customer?.MonthlyIncome ?? 0,
+                CustomerName = $"{customer?.FirstName} {customer?.LastName}".Trim(),
+                PanNumber = customer?.Pan ?? string.Empty,
+                MonthlyIncome = customer?.MonthlyIncome ?? 0,   
                 eligibility.CibilScore,
                 eligibility.IsEligible,
                 eligibility.LoanAmount,
@@ -52,6 +56,7 @@ namespace Loan.Controllers
             return Ok(response);
         }
 
+        [Authorize(Roles = "Officer")]
         [HttpGet]
         [Route("manual-reviews")]
         public async Task<IActionResult> GetManualReviews()
@@ -66,6 +71,7 @@ namespace Loan.Controllers
             });
         }
 
+        [Authorize(Roles = "Officer")]
         [HttpPost]
         [Route("manual-review/decision")]
         public async Task<IActionResult> DecideManualReview(ManualReviewDecisionDto decision)
