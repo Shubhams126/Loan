@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Loan.Controllers
 {
+    
     [Route("api/[controller]")]
     [ApiController]
     public class AuthController : ControllerBase

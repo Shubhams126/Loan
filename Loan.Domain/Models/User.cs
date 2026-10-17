@@ -1,5 +1,6 @@
 ﻿
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Loan.Domain.Models
 {
@@ -8,6 +9,7 @@ namespace Loan.Domain.Models
         [Key]
         public int UserId { get; set; }
 
+        [ForeignKey("RoleId")]
         public int RoleId { get; set; }
 
         public int? CustomerId { get; set; }

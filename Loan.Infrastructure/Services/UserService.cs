@@ -153,7 +153,7 @@ namespace Loan.Infrastructure.Services
                     LastName = pending.LastName,
                     Age = pending.Age,
                     Email = pending.Email,
-                    Password = pending.PasswordHash, 
+                    Password = pending.PasswordHash,
                     MobileNo = pending.MobileNo,
                     Pan = pending.Pan,
                     AadhaarNo = pending.AadhaarNo,

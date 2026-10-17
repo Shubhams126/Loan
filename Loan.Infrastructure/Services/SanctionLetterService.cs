@@ -8,7 +8,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
-namespace Loan.Application.Services
+namespace Loan.Infrastructure.Services
 {
     public class SanctionLetterService : ISanctionLetterService
     {

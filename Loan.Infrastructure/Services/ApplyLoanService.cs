@@ -5,7 +5,7 @@ using Loan.Domain.Models;
 using Loan.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Loan.Application.Services
+namespace Loan.Infrastructure.Services
 {
     public class ApplyLoanService : IApplyLoanService
     {

@@ -28,13 +28,15 @@ namespace Loan.Infrastructure.Services
                 return "Please select a file.";
             }
 
-            if (fileLength > 5 * 1024 * 1024) { 
+            if (fileLength > 5 * 1024 * 1024)
+            {
                 return "File must be below 5 MB.";
             }
 
             string extension = Path.GetExtension(fileName).ToLower();
 
-            if (!new[] { ".pdf", ".jpg", ".jpeg", ".png" }.Contains(extension)) { 
+            if (!new[] { ".pdf", ".jpg", ".jpeg", ".png" }.Contains(extension))
+            {
                 return "Only PDF and image files are allowed.";
             }
 
@@ -67,7 +69,7 @@ namespace Loan.Infrastructure.Services
 
         public async Task<List<KycDocumentDto>> GetCustomerDocuments(int customerId)
         {
-            var data =  await db.KycDocuments.Where(d => d.CustomerId == customerId)
+            var data = await db.KycDocuments.Where(d => d.CustomerId == customerId)
                 .Select(d => new KycDocumentDto
                 {
                     DocumentId = d.DocumentId,
@@ -103,7 +105,8 @@ namespace Loan.Infrastructure.Services
         {
             var document = await db.KycDocuments.FirstOrDefaultAsync(d => d.DocumentId == documentId);
 
-            if (document == null) { 
+            if (document == null)
+            {
                 return "Document not found.";
             }
 
@@ -121,7 +124,8 @@ namespace Loan.Infrastructure.Services
         {
             var document = await db.KycDocuments.FirstOrDefaultAsync(d => d.DocumentId == documentId);
 
-            if (document == null) { 
+            if (document == null)
+            {
                 return "Document not found.";
             }
 

@@ -3,7 +3,7 @@ using System.Text;
 using Hangfire;
 using Hangfire.SqlServer;
 using Loan.Application.Interface;
-using Loan.Application.Services;
+using Loan.Infrastructure.Services;
 using Loan.Domain.Models;
 using Loan.Infrastructure.Data;
 using Loan.Infrastructure.Services;
@@ -27,7 +27,9 @@ builder.Services.AddScoped<IPaymentHistroyService, PaymentHistroyService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Database configuration
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("dbconn")));
+
 var connectionString = builder.Configuration.GetConnectionString("dbconn");
 
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -58,7 +60,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IKycService, KycService>();
-
+builder.Services.AddScoped<EmiPaymentService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("MyApp", policy =>
@@ -87,18 +89,6 @@ builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme =
         JwtBearerDefaults.AuthenticationScheme;
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("MyApp", policy =>
-    {
-        policy.WithOrigins("http://localhost:4200")
-        .AllowAnyMethod()
-        .AllowAnyHeader()
-        .AllowCredentials();
-    });
-});
-
     options.DefaultChallengeScheme =
         JwtBearerDefaults.AuthenticationScheme;
 })
@@ -129,7 +119,6 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-app.UseCors("AllowAngular");
 
 // HTTP request pipeline
 if (app.Environment.IsDevelopment())

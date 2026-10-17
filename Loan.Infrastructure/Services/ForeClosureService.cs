@@ -4,8 +4,11 @@ using Loan.Application.Interface;
 using Loan.Domain.Models;
 using Loan.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Razorpay.Api;
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Loan.Infrastructure.Services
@@ -13,9 +16,13 @@ namespace Loan.Infrastructure.Services
     public class ForeClosureService : IForeClosureService
     {
         AppDbContext db;
-        public ForeClosureService(AppDbContext db)
+        IConfiguration config;
+        private readonly EmiPaymentService emiPaymentService;
+        public ForeClosureService(AppDbContext db, EmiPaymentService emiPaymentService, IConfiguration config)
         {
             this.db = db;
+            this.emiPaymentService = emiPaymentService;
+            this.config = config;
         }
         public async Task<string> CreateForeClosureRequest(CreateForeclosureDto dto)
         {
@@ -58,10 +65,30 @@ namespace Loan.Infrastructure.Services
             return "ForeClosure Request Created Successfully";
         }
 
-        public async Task<List<ForeClosureRequest>> GetForeClosureRequests()
+        public async Task<List<ForeClosureRequestDto>> GetForeClosureRequests()
         {
-            var reqs = await db.ForeClosureRequests.ToListAsync();
+            var reqs = await db.ForeClosureRequests.Include(x => x.LoanAccount).ThenInclude(x => x.Customer)
+                .Select(x => new ForeClosureRequestDto
+                {
+                    RequestId = x.RequestId,
+                    LoanAccountId = x.LoanAccountId,
+                    LoanAccountNo = x.LoanAccount!.LoanAccountNo,
+                    CustomerName = x.LoanAccount!.Customer!.FirstName,
+                    ForeClosureType = x.ForeClosureType,
+                    RequestedDate = x.RequestedDate,
+                    ForeClosureAmount = x.ForeClosureAmount,
+                    OutstandingPrincipal = x.LoanAccount.OutstandingPrincipal,
+                    Status = x.Status,
+                    RequestCategory = "Foreclosure"
+                }).ToListAsync();
+                
             return reqs;
+        }
+
+        public async Task<List<ForeClosureRequest>> GetForeClosureRequestbyid(int id)
+        {
+            var req = await db.ForeClosureRequests.Where(x => x.LoanAccount!.CustomerId == id).ToListAsync();
+            return req;
         }
 
         public async Task<string> PayForeClosure(int rid)
@@ -136,7 +163,29 @@ namespace Loan.Infrastructure.Services
 
         }
 
-        public async Task<string> UpdateForeClosuere(int rid, string s)
+        public async Task<string> CreateForeClosureOrder(int requestId)
+        {
+            var request = await db.ForeClosureRequests
+                .FirstOrDefaultAsync(x => x.RequestId == requestId);
+
+            if (request == null)
+                return "Request Not Found";
+
+            if (request.Status != "Approved")
+                return "Request is not Approved";
+            if (request.IsPaid)
+                return "Payment Already Done";
+            decimal amount = request.ForeClosureType == "Full"
+                ? request.ForeClosureAmount
+                : request.PartialAmount;
+            return emiPaymentService.CreateRazorpayOrder(
+                    new CreateOrderDto
+                    {
+                     Amount = amount
+                     });
+        }
+
+        public async Task<string> UpdateForeClosuere(int rid, UpdateForeClosureDto dto)
         {
            var res=  await db.ForeClosureRequests.FindAsync(rid);
             if(res== null)
@@ -148,9 +197,63 @@ namespace Loan.Infrastructure.Services
                 return "Request Already Processd";
 
             }
-            res.Status = s;
+            res.Status = dto.Status;
             await db.SaveChangesAsync();
-            return $"{s} Successfully";
+            return $"{dto.Status} Successfully";
+        }
+
+        public async Task<ForeClosureRequestDto> GetForeClosure(int id)
+        {
+            var reqs = await db.ForeClosureRequests.Include(x => x.LoanAccount).ThenInclude(x => x.Customer)
+                .Select(x => new ForeClosureRequestDto
+                {
+                    RequestId = x.RequestId,
+                    LoanAccountId = x.LoanAccountId,
+                    LoanAccountNo = x.LoanAccount!.LoanAccountNo,
+                    CustomerName = x.LoanAccount!.Customer!.FirstName,
+                    ForeClosureType = x.ForeClosureType,
+                    RequestedDate = x.RequestedDate,
+                    ForeClosureAmount = x.ForeClosureAmount,
+                    OutstandingPrincipal = x.LoanAccount.OutstandingPrincipal,
+                    Status = x.Status,
+                    RequestCategory = "Foreclosure"
+                }).FirstOrDefaultAsync(x => x.RequestId == id);
+            return reqs;
+        }
+
+        public async Task<bool> VerifyForeClosurePayment(VerifyForeClosurePaymentDto dto)
+        {
+            string secret = config["Razorpay:Secret"];
+            string payload = $"{dto.RazorpayOrderId}|{dto.RazorpayPaymentId}";
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+            byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+            string generatedSignature = Convert.ToHexString(hash).ToLower();
+            if (!generatedSignature.Equals(dto.RazorpaySignature,StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+            RazorpayClient client = new RazorpayClient(config["Razorpay:Key"],config["Razorpay:Secret"]);
+            Payment payment = client.Payment.Fetch(dto.RazorpayPaymentId);
+            if (payment["status"].ToString() != "captured")
+                return false;
+            if (payment["order_id"].ToString() != dto.RazorpayOrderId)
+                return false;
+            var request = await db.ForeClosureRequests.FirstOrDefaultAsync(x => x.RequestId == dto.RequestId);
+            if (request == null || request.Status != "Approved" ||
+                request.IsPaid)
+            {
+                return false;
+            }
+            var loan = await db.LoanAccounts.FirstOrDefaultAsync(x =>x.LoanAccountId == request.LoanAccountId);
+            if (loan == null || loan.LoanStatus != "Active")
+                return false;
+            decimal amount = request.ForeClosureType == "Full"? request.ForeClosureAmount: request.PartialAmount;
+            long expectedAmount = Convert.ToInt64(amount * 100);
+            long paidAmount = Convert.ToInt64(payment["amount"]);
+            if (paidAmount != expectedAmount)
+                return false;
+            string result = await PayForeClosure(dto.RequestId);
+            return result == "ForeClosure Payment Processed Successfully";
         }
     }
 }
