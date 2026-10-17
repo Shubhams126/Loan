@@ -12,7 +12,7 @@ namespace Loan.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [EnableRateLimiting("api")]
-    //[Authorize]
+    [Authorize]
     public class ApplyLoanController : ControllerBase
     {
         private readonly IApplyLoanService service;
@@ -22,7 +22,6 @@ namespace Loan.Controllers
             this.service = service;
         }
 
-        // GET: api/ApplyLoan/options
         [HttpGet]
         [Route("options")]
         [AllowAnonymous]
@@ -40,7 +39,7 @@ namespace Loan.Controllers
         // POST: api/ApplyLoan/apply
         [HttpPost]
         [Route("apply")]
-        //[Authorize(Roles = "User,Customer")]
+        [Authorize(Roles = "Customer")]
         public async Task<IActionResult> ApplyLoan(
             [FromBody] LoanApplyDto dto)
         {
@@ -50,19 +49,20 @@ namespace Loan.Controllers
                     ApiResponse<LoanApplyDto>.Fail(
                         "Invalid loan application data."));
             }
-        
 
-            if (User.IsInRole("Customer") &&
-                (!int.TryParse(
-                    User.FindFirstValue("CustomerId"),
-                    out var tokenCustomerId) ||
-                 tokenCustomerId != dto.CustomerId))
+            // Get CustomerId from the authenticated JWT.
+            if (!int.TryParse(
+                User.FindFirstValue("CustomerId"),
+                out var customerId) ||
+                customerId <= 0)
             {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
+                return Unauthorized(
                     ApiResponse<LoanApplyDto>.Fail(
-                        "You can only apply for a loan using your own customer account."));
+                        "Customer ID not found in authentication token."));
             }
+
+            // Always use the authenticated customer's ID.
+            dto.CustomerId = customerId;
 
             var result = await service.ApplyLoanAsync(dto);
 
@@ -80,24 +80,15 @@ namespace Loan.Controllers
                     result.Message ??
                     "Loan application submitted successfully."));
         }
-        
 
-        // GET: api/ApplyLoan/calculate?customerId=1&loanAmount=45000&tenureYears=3
+        // GET: api/ApplyLoan/calculate
         [HttpGet]
         [Route("calculate")]
-        //[Authorize(Roles = "User,Customer")]
+        [Authorize(Roles = "Customer")]
         public async Task<IActionResult> CalculateLoan(
-            [FromQuery] int customerId,
             [FromQuery] decimal loanAmount,
             [FromQuery] int tenureYears)
         {
-            if (customerId <= 0)
-            {
-                return BadRequest(
-                    ApiResponse<LoanCalculationDto>.Fail(
-                        "Please enter a valid Customer ID."));
-            }
-
             if (loanAmount <= 0)
             {
                 return BadRequest(
@@ -112,18 +103,15 @@ namespace Loan.Controllers
                         "Please select a valid loan tenure."));
             }
 
-            // If authentication is enabled, a Customer can calculate
-            // eligibility only for their own CustomerId.
-            if (User.IsInRole("Customer") &&
-                (!int.TryParse(
-                    User.FindFirstValue("CustomerId"),
-                    out var tokenCustomerId) ||
-                 tokenCustomerId != customerId))
+            // Get CustomerId from the authenticated JWT.
+            if (!int.TryParse(
+                User.FindFirstValue("CustomerId"),
+                out var customerId) ||
+                customerId <= 0)
             {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
+                return Unauthorized(
                     ApiResponse<LoanCalculationDto>.Fail(
-                        "You can only calculate eligibility for your own customer account."));
+                        "Customer ID not found in authentication token."));
             }
 
             var result = await service.CalculateLoanAsync(

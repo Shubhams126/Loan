@@ -185,10 +185,7 @@ namespace Loan.Infrastructure.Services
             loanDeal.IFSCCode = ifscCode;
 
             loanDeal.InterestRate = interestRate;
-            loanDeal.EmiAmount = CalculateEmi(
-                dto.LoanAmount,
-                interestRate,
-                dto.TenureMonths);
+            loanDeal.EmiAmount = CalculateEmi(dto.LoanAmount,interestRate, dto.TenureMonths);
 
             loanDeal.CurrentStatus = "Pending";
             loanDeal.ApprovedAmount = 0;

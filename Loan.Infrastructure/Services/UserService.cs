@@ -55,7 +55,8 @@ namespace Loan.Infrastructure.Services
                 Age = dto.Age,
                 Email = dto.Email,
 
-                PasswordHash = dto.Password,
+                PasswordHash = new Microsoft.AspNetCore.Identity.PasswordHasher<User>()
+                    .HashPassword(new User(), dto.Password),
 
                 MobileNo = dto.MobileNo,
                 Pan = dto.Pan,
@@ -153,7 +154,7 @@ namespace Loan.Infrastructure.Services
                     LastName = pending.LastName,
                     Age = pending.Age,
                     Email = pending.Email,
-                    Password = pending.PasswordHash, 
+                    Password = pending.PasswordHash,
                     MobileNo = pending.MobileNo,
                     Pan = pending.Pan,
                     AadhaarNo = pending.AadhaarNo,
@@ -207,9 +208,63 @@ namespace Loan.Infrastructure.Services
 
         public async Task<AuthResponseDto> Login(LoginDto dto)
         {
-            User? user = await db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower());
+            User? user = await db.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u =>
+                    u.Email.ToLower() == dto.Email.ToLower());
 
-            if (user == null || user.PasswordHash != dto.Password)
+            if (user == null)
+            {
+                return new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Invalid email or password."
+                };
+            }
+
+            var passwordHasher =
+                new Microsoft.AspNetCore.Identity.PasswordHasher<User>();
+
+            bool passwordIsValid = false;
+
+            if (!string.IsNullOrWhiteSpace(user.PasswordHash))
+            {
+                // Support old development accounts that stored the password as plain text.
+                // When such an account logs in successfully, immediately replace it with a hash.
+                if (user.PasswordHash == dto.Password)
+                {
+                    passwordIsValid = true;
+                    user.PasswordHash = passwordHasher.HashPassword(user, dto.Password);
+                    await db.SaveChangesAsync();
+                }
+                else
+                {
+                    try
+                    {
+                        var passwordResult = passwordHasher.VerifyHashedPassword(
+                            user,
+                            user.PasswordHash,
+                            dto.Password
+                        );
+
+                        passwordIsValid = passwordResult !=
+                            Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed;
+
+                        if (passwordResult ==
+                            Microsoft.AspNetCore.Identity.PasswordVerificationResult.SuccessRehashNeeded)
+                        {
+                            user.PasswordHash = passwordHasher.HashPassword(user, dto.Password);
+                            await db.SaveChangesAsync();
+                        }
+                    }
+                    catch (FormatException)
+                    {
+                        passwordIsValid = false;
+                    }
+                }
+            }
+
+            if (!passwordIsValid)
             {
                 return new AuthResponseDto
                 {
@@ -222,12 +277,15 @@ namespace Loan.Infrastructure.Services
 
             user.LoginChallengeId = challengeId;
             user.LoginChallengeExpiry = DateTime.UtcNow.AddMinutes(5);
+
             await db.SaveChangesAsync();
 
             return new AuthResponseDto
             {
                 Success = true,
-                Message = user.IsTwoFactorEnabled ? "Enter your authenticator OTP." : "Set up your authenticator app.",
+                Message = user.IsTwoFactorEnabled
+                    ? "Enter your authenticator OTP."
+                    : "Set up your authenticator app.",
                 ChallengeId = challengeId,
                 Requires2FASetup = !user.IsTwoFactorEnabled,
                 Role = user.Role?.RoleName

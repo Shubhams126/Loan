@@ -3,6 +3,8 @@
     public class LoanApplyDto
     {
         public int CustomerId { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
+        public decimal MonthlyIncome { get; set; }
 
         public int DealId { get; set; }
 
