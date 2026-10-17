@@ -8,19 +8,16 @@ namespace Loan.Domain.Models
         public int CustomerId { get; set; }
 
         [Required(ErrorMessage = "First Name is required")]
-        [RegularExpression(@"^[A-Za-z]{2,12}$",
-            ErrorMessage = "It should be alphabet only")]
+        
         public string FirstName { get; set; }
 
         [Required(ErrorMessage = "Last Name is required")]
-        [RegularExpression(@"^[A-Za-z]{2,12}$",
-            ErrorMessage = "It should be alphabet only")]
         public string LastName { get; set; }
 
         // AGE VALIDATION
         [Required(ErrorMessage = "Age is required")]
-        [Range(18, 60,
-            ErrorMessage = "Age must be between 18 and 60")]
+        [Range(18, 60, ErrorMessage = "Age must be between 18 and 60")]
+
         public int Age { get; set; }
 
         // EMAIL VALIDATION
@@ -33,14 +30,12 @@ namespace Loan.Domain.Models
 
         // MOBILE NUMBER VALIDATION
         [Required(ErrorMessage = "Mobile Number is required")]
-        [RegularExpression(@"^[6-9]\d{9}$",
-            ErrorMessage = "Enter valid 10 digit mobile number")]
+        [RegularExpression(@"^[6-9]\d{9}$",ErrorMessage = "Enter valid 10 digit mobile number")]
         public string MobileNo { get; set; }
 
         // PAN CARD VALIDATION
         [Required(ErrorMessage = "PAN Number is required")]
-        [RegularExpression(@"^[A-Z]{5}[0-9]{4}[A-Z]{1}$",
-            ErrorMessage = "Invalid PAN Number")]
+        [RegularExpression(@"^[A-Z]{5}[0-9]{4}[A-Z]{1}$",ErrorMessage = "Invalid PAN Number")]
         public string Pan { get; set; }
 
         // AADHAAR VALIDATION
@@ -53,9 +48,13 @@ namespace Loan.Domain.Models
         public string EmploymentType { get; set; }
 
         [Required(ErrorMessage = "Monthly Income is required")]
-        [Range(1000, 10000000,
-            ErrorMessage = "Enter valid income")]
+        [Range(1000, 10000000,ErrorMessage = "Enter valid income")]
         public decimal MonthlyIncome { get; set; }
+
+        // TOTAL MONTHLY DEBT PAYMENT VALIDATION
+        [Required(ErrorMessage = "Total Monthly Debt Payment is required")]
+        [Range(0, 10000000,ErrorMessage = "Enter valid debt amount")]
+        public decimal TotalMonthlyDebt { get; set; }
 
         public bool IsEmailVerified { get; set; } = false;
 

@@ -1,43 +1,115 @@
+
+using System;
+using System.Text;
+using Hangfire;
+using Hangfire.SqlServer;
 using Loan.Application.Interface;
+using Loan.Application.Services;
 using Loan.Infrastructure.Data;
 using Loan.Infrastructure.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Loan.Application.Mapper;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure CORS to allow requests from Angular.
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAngular", policy =>
-    {
-        policy
-            .WithOrigins("http://localhost:4200")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
-});
 
 builder.Services.AddControllers();
-
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-options.UseSqlServer(
-builder.Configuration.GetConnectionString("dbconn")
-)
-);
+    options.UseSqlServer(builder.configuration.GetConnectionString("dbconn")));
 
-builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
-builder.Services.AddScoped<IDashboardService, DashboardService>();
-builder.Services.AddScoped<IReportsService, ReportsService>();
-builder.Services.AddScoped<ILMSReportsService, LMSReportsService>();
+var connectionString =
+    builder.Configuration.GetConnectionString("dbconn");
 
-builder.Services.AddAutoMapper(cfg => { },
-    typeof(SupportTicketMappingProfile).Assembly);
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException(
+        "Connection string 'dbconn' is missing in appsettings.json.");
+}
+
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("MyApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
+builder.Services.AddScoped<IApplyLoanService, ApplyLoanService>();
+builder.Services.AddScoped<ISanctionLetterService, SanctionLetterService>();
+builder.Services.AddScoped<IDisbursementService, DisbursementService>();
+builder.Services.AddScoped<ICibilService, CibilService>();
+builder.Services.AddScoped<IScoreCardService, ScoreCardService>();
+builder.Services.AddScoped<IEligibilityService, EligibilityService>();
+builder.Services.AddScoped<ILoanAccountService, LoanAccountService>();
+builder.Services.AddScoped<IEmiScheduleService, EmiScheduleService>();
+builder.Services.AddScoped<IEmiPaymentService, EmiPaymentService>();
+builder.Services.AddScoped<IForeClosureService, ForeClosureService>();
+builder.Services.AddScoped<IPaymentHistroyService, PaymentHistroyService>();
+builder.Services.AddScoped<IKycService, KycService>();
+
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<JwtTokenService>();
+
+var jwtKey = builder.Configuration["Jwt:Key"];
+var jwtIssuer = builder.Configuration["Jwt:Issuer"];
+var jwtAudience = builder.Configuration["Jwt:Audience"];
+
+if (string.IsNullOrWhiteSpace(jwtKey) ||
+    string.IsNullOrWhiteSpace(jwtIssuer) ||
+    string.IsNullOrWhiteSpace(jwtAudience))
+{
+    throw new InvalidOperationException(
+        "JWT Key, Issuer or Audience is missing in appsettings.json.");
+}
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme =
+        JwtBearerDefaults.AuthenticationScheme;
+
+    options.DefaultChallengeScheme =
+        JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidIssuer = jwtIssuer,
+
+        ValidateAudience = true,
+        ValidAudience = jwtAudience,
+
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(jwtKey)),
+
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
+builder.Services.AddAuthorization();
+
+builder.Services.AddHangfire(config =>
+    config.UseSqlServerStorage(connectionString));
+
+builder.Services.AddHangfireServer();
 
 var app = builder.Build();
+
+app.UseHttpsRedirection();
+
+app.UseCors("MyApp");
 
 if (app.Environment.IsDevelopment())
 {
@@ -45,10 +117,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseHangfireDashboard();
 
-app.UseCors("AllowAngular");
-
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
