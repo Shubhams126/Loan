@@ -19,6 +19,6 @@ namespace Loan.Application.Interface
 
         Task<AuthResponseDto> VerifyOTP(VerifyOTPDto dto);
 
-        Task<AuthResponseDto> GoogleLogin(GoogleLoginDto dto);
+        //Task<AuthResponseDto> GoogleLogin(GoogleLoginDto dto);
     }
 }

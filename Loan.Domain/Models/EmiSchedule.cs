@@ -30,8 +30,7 @@ namespace Loan.Domain.Models
         public DateTime? PaidDate { get; set; }
 
         public LoanAccount? LoanAccount { get; set; }
-
-        
+        public string Status { get; set; }
     }
 }
 
