@@ -10,10 +10,15 @@ namespace Loan.Application.Interface
     {
         Task<string> CreateForeClosureRequest(CreateForeclosureDto dto);
 
-        Task<List<ForeClosureRequest>> GetForeClosureRequests();
+        Task<List<ForeClosureRequestDto>> GetForeClosureRequests();
+        Task<ForeClosureRequestDto> GetForeClosure(int id);
 
-        Task<string> UpdateForeClosuere(int rid, string s);
 
+        Task<List<ForeClosureRequest>> GetForeClosureRequestbyid(int id);
+
+        Task<string> UpdateForeClosuere(int rid, UpdateForeClosureDto dto);
+        Task<string> CreateForeClosureOrder(int requestId);
+        Task<bool> VerifyForeClosurePayment(VerifyForeClosurePaymentDto dto);
         Task<string> PayForeClosure(int rid);
     }
 }

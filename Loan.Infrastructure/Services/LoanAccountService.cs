@@ -71,25 +71,15 @@ public class LoanAccountService : ILoanAccountService
             .Select(x => new LoanAccountListDto
             {
                 LoanAccountId = x.LoanAccountId,
-
                 LoanAccountNo = x.LoanAccountNo,
-
                 CustomerName = x.Customer.FirstName + " " + x.Customer.LastName,
-
                 LoanAmount = x.LoanAmount,
-
                 OutstandingPrincipal = x.OutstandingPrincipal,
-
                 Status = x.LoanStatus,
-
                 InterestRate = x.InterestRate,
-
                 TenureMonths = x.TenureMonths,
-
                 EmiAmount = x.EmiAmount,
-
                 DisbursementDate = x.DisbursementDate,
-
                 TotalPaid = x.TotalPaidAmount
             })
             .ToListAsync();

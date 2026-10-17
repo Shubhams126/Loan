@@ -4,7 +4,10 @@ using System.Text;
 using Hangfire;
 using Hangfire.SqlServer;
 using Loan.Application.Interface;
-using Loan.Application.Services;
+
+using Loan.Infrastructure.Services;
+using Loan.Domain.Models;
+
 using Loan.Infrastructure.Data;
 using Loan.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -58,7 +61,20 @@ builder.Services.AddScoped<IKycService, KycService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<IKycService, KycService>();
+builder.Services.AddScoped<EmiPaymentService>();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("MyApp", policy =>
+    { 
+    policy.WithOrigins("http://localhost:4200")
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+    .AllowCredentials();
+});
+});
 
+// JWT configuration
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
