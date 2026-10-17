@@ -1,5 +1,4 @@
 ﻿
-using Google.Apis.Auth;
 using Loan.Application.DTOs;
 using Loan.Application.Interface;
 using Loan.Domain.Models;
@@ -42,8 +41,8 @@ namespace Loan.Infrastructure.Services
 
             if (await db.PendingRegistrations.AnyAsync(p => p.Email.ToLower() == dto.Email.ToLower()))
             {
-                db.PendingRegistrations.RemoveRange(db.PendingRegistrations.Where(p => p.Email.ToLower() == dto.Email.ToLower()));
-
+                db.PendingRegistrations.RemoveRange(
+                    db.PendingRegistrations.Where(p => p.Email.ToLower() == dto.Email.ToLower()));
                 await db.SaveChangesAsync();
             }
 
@@ -56,13 +55,15 @@ namespace Loan.Infrastructure.Services
                 Age = dto.Age,
                 Email = dto.Email,
 
-                PasswordHash = dto.Password,
+                PasswordHash = new Microsoft.AspNetCore.Identity.PasswordHasher<User>()
+                    .HashPassword(new User(), dto.Password),
 
                 MobileNo = dto.MobileNo,
                 Pan = dto.Pan,
                 AadhaarNo = dto.AadhaarNo,
                 EmploymentType = dto.EmploymentType,
                 MonthlyIncome = dto.MonthlyIncome,
+                TotalMonthlyDebt = dto.TotalMonthlyDebt,
 
                 OtpHash = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(otp))),
                 OtpExpiry = DateTime.UtcNow.AddMinutes(10)
@@ -159,7 +160,7 @@ namespace Loan.Infrastructure.Services
                     AadhaarNo = pending.AadhaarNo,
                     EmploymentType = pending.EmploymentType,
                     MonthlyIncome = pending.MonthlyIncome,
-                    TotalMonthlyDebt = pending.TotalMonthlyDebt,
+                    TotalMonthlyDebt = 0,
                     IsEmailVerified = true
                 };
 
@@ -207,9 +208,63 @@ namespace Loan.Infrastructure.Services
 
         public async Task<AuthResponseDto> Login(LoginDto dto)
         {
-            User? user = await db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower());
+            User? user = await db.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u =>
+                    u.Email.ToLower() == dto.Email.ToLower());
 
-            if (user == null || user.PasswordHash != dto.Password)
+            if (user == null)
+            {
+                return new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Invalid email or password."
+                };
+            }
+
+            var passwordHasher =
+                new Microsoft.AspNetCore.Identity.PasswordHasher<User>();
+
+            bool passwordIsValid = false;
+
+            if (!string.IsNullOrWhiteSpace(user.PasswordHash))
+            {
+                // Support old development accounts that stored the password as plain text.
+                // When such an account logs in successfully, immediately replace it with a hash.
+                if (user.PasswordHash == dto.Password)
+                {
+                    passwordIsValid = true;
+                    user.PasswordHash = passwordHasher.HashPassword(user, dto.Password);
+                    await db.SaveChangesAsync();
+                }
+                else
+                {
+                    try
+                    {
+                        var passwordResult = passwordHasher.VerifyHashedPassword(
+                            user,
+                            user.PasswordHash,
+                            dto.Password
+                        );
+
+                        passwordIsValid = passwordResult !=
+                            Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed;
+
+                        if (passwordResult ==
+                            Microsoft.AspNetCore.Identity.PasswordVerificationResult.SuccessRehashNeeded)
+                        {
+                            user.PasswordHash = passwordHasher.HashPassword(user, dto.Password);
+                            await db.SaveChangesAsync();
+                        }
+                    }
+                    catch (FormatException)
+                    {
+                        passwordIsValid = false;
+                    }
+                }
+            }
+
+            if (!passwordIsValid)
             {
                 return new AuthResponseDto
                 {
@@ -222,12 +277,15 @@ namespace Loan.Infrastructure.Services
 
             user.LoginChallengeId = challengeId;
             user.LoginChallengeExpiry = DateTime.UtcNow.AddMinutes(5);
+
             await db.SaveChangesAsync();
 
             return new AuthResponseDto
             {
                 Success = true,
-                Message = user.IsTwoFactorEnabled ? "Enter your authenticator OTP." : "Set up your authenticator app.",
+                Message = user.IsTwoFactorEnabled
+                    ? "Enter your authenticator OTP."
+                    : "Set up your authenticator app.",
                 ChallengeId = challengeId,
                 Requires2FASetup = !user.IsTwoFactorEnabled,
                 Role = user.Role?.RoleName
@@ -330,66 +388,6 @@ namespace Loan.Infrastructure.Services
                 Token = token,
                 Role = user.Role?.RoleName
             };
-        }
-        public async Task<AuthResponseDto> GoogleLogin(GoogleLoginDto dto)
-        {
-            try
-            {
-                string clientId = config["Google:ClientId"] ?? throw new InvalidOperationException("Google Client ID is missing.");
-
-                var settings = new GoogleJsonWebSignature.ValidationSettings
-                {
-                    Audience = new[] { clientId }
-                };
-
-                var payload = await GoogleJsonWebSignature.ValidateAsync(dto.IdToken, settings);
-
-                if (!payload.EmailVerified)
-                {
-                    return new AuthResponseDto
-                    {
-                        Success = false,
-                        Message = "Google email is not verified."
-                    };
-                }
-
-                User? user = await db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Email.ToLower() == payload.Email.ToLower());
-
-                if (user == null)
-                {
-                    return new AuthResponseDto
-                    {
-                        Success = false,
-                        Message = "Account not found. Please register first."
-                    };
-                }
-
-                string challengeId = Guid.NewGuid().ToString("N");
-
-                user.LoginChallengeId = challengeId;
-                user.LoginChallengeExpiry = DateTime.UtcNow.AddMinutes(5);
-
-                await db.SaveChangesAsync();
-
-                return new AuthResponseDto
-                {
-                    Success = true,
-                    Message = user.IsTwoFactorEnabled
-                        ? "Google sign-in successful. Enter your authenticator OTP."
-                        : "Google sign-in successful. Set up your authenticator app.",
-                    ChallengeId = challengeId,
-                    Requires2FASetup = !user.IsTwoFactorEnabled,
-                    Role = user.Role?.RoleName
-                };
-            }
-            catch (InvalidJwtException)
-            {
-                return new AuthResponseDto
-                {
-                    Success = false,
-                    Message = "Invalid Google ID token."
-                };
-            }
         }
     }
 }

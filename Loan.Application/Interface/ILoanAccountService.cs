@@ -12,5 +12,7 @@ namespace Loan.Application.Interface
         Task<string> CreateLoanAccount(int disbursementId);
 
         Task<List<LoanAccountListDto>> GetMyLoanAccounts(int customerId);
+
+        Task<List<LoanAccountListDto>> SearchLoan(string str);
     }
 }

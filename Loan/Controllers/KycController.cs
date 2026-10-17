@@ -20,8 +20,7 @@ namespace Loan.Controllers
             this.service = service;
         }
 
-        [HttpPost("Upload")]
-        [Authorize(Roles = "Customer")]
+        [HttpPost("upload")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> Upload([FromForm] string documentType, /*[FromForm]*/ IFormFile file)
 
@@ -53,6 +52,21 @@ namespace Loan.Controllers
             return Ok(new { message = result });
         }
 
+            using var stream = dto.File.OpenReadStream();
+
+            var result = await service.UploadDocument(
+                dto.CustomerId,
+                dto.DocumentType,
+                dto.File.FileName,
+                stream,
+                dto.File.Length
+            );
+
+            if (result != "Document uploaded successfully.")
+                return BadRequest(result);
+
+            return Ok(result);
+        }
         [HttpGet("MyDocuments")]
         [Authorize(Roles = "Customer")]
         public async Task<IActionResult> MyDocuments()

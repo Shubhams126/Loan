@@ -2,6 +2,7 @@
 using Loan.Domain.Models;
 using Loan.Infrastructure.Data;
 using Loan.Infrastructure.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,9 @@ namespace Loan.Controllers
             this.db = db;
         }
 
-        [HttpPost("calculate/{customerId}")]
+        [Authorize(Roles = "Customer")]
+        [HttpPost]
+        [Route("calculate/{customerId}")]
         public async Task<IActionResult> GetCibilScoreReport(int customerId)
         {
             var report = await service.GetCibilScore(customerId);
@@ -35,6 +38,7 @@ namespace Loan.Controllers
             {
                 report.CibilReportId,
                 report.CustomerId,
+                CustomerName = report.Customer != null? report.Customer.FirstName + " " + report.Customer.LastName: "",
                 report.PanNo,
                 report.CibilScore,
                 report.CheckDate
@@ -51,7 +55,9 @@ namespace Loan.Controllers
             return Ok(response);
         }
 
-        [HttpGet("latest/{customerId}")]
+        [Authorize(Roles = "Customer")]
+        [HttpGet]
+        [Route("latest/{customerId}")]
         public async Task<IActionResult> GetLatestCibil(int customerId)
         {
             var report = await service.GetLatestCibil(customerId);
@@ -65,6 +71,7 @@ namespace Loan.Controllers
             {
                 report.CibilReportId,
                 report.CustomerId,
+                CustomerName = report.Customer != null ? report.Customer.FirstName + " " + report.Customer.LastName : "",
                 report.PanNo,
                 report.CibilScore,
                 report.CheckDate

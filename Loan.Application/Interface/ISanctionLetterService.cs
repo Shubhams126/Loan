@@ -1,16 +1,17 @@
-﻿
+
 using Loan.Application.DTOs;
 
 namespace Loan.Application.Interface
 {
     public interface ISanctionLetterService
     {
-        Task<List<ApprovedLoanDto>> GetApprovedLoansAsync();
+        Task<List<LoanApplyDto>> GetApprovedLoansAsync();
 
-        Task<SanctionLetterDocumentDto> GenerateSanctionLetterAsync(
-            int dealId);
+        Task<PagedResult<ApprovedLoanDto>> GetApprovedLoansAsync(int page, int pageSize);
 
-        Task<SanctionLetterDocumentDto?> GetSanctionLetterAsync(
-            int dealId);
+        Task<SanctionLetterDocumentDto> GenerateSanctionLetterAsync(int dealId);
+
+        Task<SanctionLetterDocumentDto?> GetSanctionLetterAsync(int dealId);
     }
 }
+

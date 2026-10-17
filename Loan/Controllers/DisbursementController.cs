@@ -1,56 +1,90 @@
-﻿using Loan.Application.DTOs;
+using Loan.Application.DTOs;
 using Loan.Application.Interface;
+using Loan.Domain.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
-namespace Loan.Controllers
+namespace Loan.Controllers;
+
+[ApiController]
+[EnableRateLimiting("api")]
+[Route("api/[controller]")]
+public class DisbursementController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class DisbursementController : ControllerBase
+    private readonly IDisbursementService service;
+
+    public DisbursementController(IDisbursementService service)
     {
-        private readonly IDisbursementService service;
+        this.service = service;
+    }
 
-        public DisbursementController(IDisbursementService service)
+    [HttpGet("pending")]
+    public async Task<ActionResult<
+        ApiResponse<PagedResult<DisbursementDto>>>>
+        GetPendingDisbursements(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+    {
+        var data = await service.GetPendingDisbursementsAsync(
+            page, pageSize);
+
+        return Ok(
+            ApiResponse<PagedResult<DisbursementDto>>.Ok(
+                data,
+                "Pending disbursements retrieved successfully."));
+    }
+
+    [HttpPost("disburse")]
+    public async Task<ActionResult<ApiResponse<DisbursementDto>>>
+        DisburseLoan([FromBody] DisbursementDto dto)
+    {
+        if (!ModelState.IsValid)
         {
-            this.service = service;
+            return BadRequest(
+                ApiResponse<DisbursementDto>.Fail(
+                    "Invalid disbursement request."));
         }
 
-        [HttpGet("pending")]
-        public async Task<IActionResult> GetPendingDisbursements()
+        try
         {
-            var result = await service.GetPendingDisbursementsAsync();
-            return Ok(result);
-        }
+            var result = await service.DisburseLoanAsync(dto);
 
-        [HttpPost("disburse")]
-        public async Task<IActionResult> DisburseLoan(
-            [FromBody] DisbursementDto dto)
+            return Ok(
+                ApiResponse<DisbursementDto>.Ok(
+                    result,
+                    "Loan disbursed successfully. Loan status is now Active."));
+        }
+        catch (KeyNotFoundException ex)
         {
-            try
-            {
-                var result = await service.DisburseLoanAsync(dto);
-
-                return Ok(new
-                {
-                    Message = "Loan disbursed successfully. Loan status is now Active.",
-                    Data = result
-                });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return NotFound(new { Message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { Message = ex.Message });
-            }
+            return NotFound(
+                ApiResponse<DisbursementDto>.Fail(ex.Message));
         }
-
-        [HttpGet("all")]
-        public async Task<IActionResult> GetAllDisbursements()
+        catch (InvalidOperationException ex)
         {
-            var result = await service.GetDisbursementsAsync();
-            return Ok(result);
+            return BadRequest(
+                ApiResponse<DisbursementDto>.Fail(ex.Message));
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(
+                ApiResponse<DisbursementDto>.Fail(ex.Message));
+        }
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<
+        ApiResponse<PagedResult<DisbursementDto>>>>
+        GetDisbursements(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+    {
+        var data = await service.GetDisbursementsAsync(
+            page, pageSize);
+
+        return Ok(
+            ApiResponse<PagedResult<DisbursementDto>>.Ok(
+                data,
+                "Disbursements retrieved successfully."));
     }
 }

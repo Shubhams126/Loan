@@ -105,4 +105,9 @@ public class LoanAccountService : ILoanAccountService
         }).ToListAsync();
         return accounts;
     }
+
+    public Task<List<LoanAccountListDto>> SearchLoan(string str)
+    {
+        throw new NotImplementedException();
+    }
 }
