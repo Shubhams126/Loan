@@ -41,6 +41,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Application services
 builder.Services.AddScoped<IApplyLoanService, ApplyLoanService>();
 builder.Services.AddScoped<ISanctionLetterService, SanctionLetterService>();
 builder.Services.AddScoped<IDisbursementService, DisbursementService>();

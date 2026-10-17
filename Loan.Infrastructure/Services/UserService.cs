@@ -62,6 +62,7 @@ namespace Loan.Infrastructure.Services
                 AadhaarNo = dto.AadhaarNo,
                 EmploymentType = dto.EmploymentType,
                 MonthlyIncome = dto.MonthlyIncome,
+                TotalMonthlyDebt = dto.TotalMonthlyDebt,
 
                 OtpHash = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(otp))),
                 OtpExpiry = DateTime.UtcNow.AddMinutes(10)
