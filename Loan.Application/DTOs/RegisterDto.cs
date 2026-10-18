@@ -31,6 +31,8 @@ namespace Loan.Application.DTOs
         [Required, RegularExpression(@"^\d{12}$")]
         public string AadhaarNo { get; set; } = string.Empty;
 
+        public decimal TotalMonthlyDebt { get; set; }
+
         [Required]
         public string EmploymentType { get; set; } = string.Empty;
 

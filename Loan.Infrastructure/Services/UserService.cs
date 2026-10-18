@@ -208,12 +208,22 @@ namespace Loan.Infrastructure.Services
 
         public async Task<AuthResponseDto> Login(LoginDto dto)
         {
-            User? user = await db.Users
+            if (string.IsNullOrWhiteSpace(dto.Email) ||
+                string.IsNullOrWhiteSpace(dto.Password))
+            {
+                return new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Email and password are required."
+                };
+            }
+
+            var user = await db.Users
                 .Include(u => u.Role)
                 .FirstOrDefaultAsync(u =>
-                    u.Email.ToLower() == dto.Email.ToLower());
+                    u.Email.ToLower() == dto.Email.Trim().ToLower());
 
-            if (user == null)
+            if (user == null || string.IsNullOrWhiteSpace(user.PasswordHash))
             {
                 return new AuthResponseDto
                 {
@@ -227,41 +237,29 @@ namespace Loan.Infrastructure.Services
 
             bool passwordIsValid = false;
 
-            if (!string.IsNullOrWhiteSpace(user.PasswordHash))
+            // Verify the password hash.
+            try
             {
-                // Support old development accounts that stored the password as plain text.
-                // When such an account logs in successfully, immediately replace it with a hash.
-                if (user.PasswordHash == dto.Password)
-                {
-                    passwordIsValid = true;
-                    user.PasswordHash = passwordHasher.HashPassword(user, dto.Password);
-                    await db.SaveChangesAsync();
-                }
-                else
-                {
-                    try
-                    {
-                        var passwordResult = passwordHasher.VerifyHashedPassword(
-                            user,
-                            user.PasswordHash,
-                            dto.Password
-                        );
+                var result = passwordHasher.VerifyHashedPassword(
+                    user,
+                    user.PasswordHash,
+                    dto.Password);
 
-                        passwordIsValid = passwordResult !=
-                            Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed;
+                passwordIsValid =
+                    result != Microsoft.AspNetCore.Identity
+                        .PasswordVerificationResult.Failed;
 
-                        if (passwordResult ==
-                            Microsoft.AspNetCore.Identity.PasswordVerificationResult.SuccessRehashNeeded)
-                        {
-                            user.PasswordHash = passwordHasher.HashPassword(user, dto.Password);
-                            await db.SaveChangesAsync();
-                        }
-                    }
-                    catch (FormatException)
-                    {
-                        passwordIsValid = false;
-                    }
+                if (result ==
+                    Microsoft.AspNetCore.Identity
+                        .PasswordVerificationResult.SuccessRehashNeeded)
+                {
+                    user.PasswordHash =
+                        passwordHasher.HashPassword(user, dto.Password);
                 }
+            }
+            catch (FormatException)
+            {
+                passwordIsValid = false;
             }
 
             if (!passwordIsValid)
@@ -273,30 +271,59 @@ namespace Loan.Infrastructure.Services
                 };
             }
 
+            // Generate a fresh challenge after successful password validation.
             string challengeId = Guid.NewGuid().ToString("N");
 
             user.LoginChallengeId = challengeId;
             user.LoginChallengeExpiry = DateTime.UtcNow.AddMinutes(5);
 
+            // Save the challenge before returning it.
             await db.SaveChangesAsync();
 
+            bool requiresSetup =
+                !user.IsTwoFactorEnabled ||
+                string.IsNullOrWhiteSpace(user.AuthenticatorSecret);
+
+            Console.WriteLine($"LOGIN METHOD HIT - ChallengeId: {challengeId}");
+
+            // Return the generated value directly.
             return new AuthResponseDto
             {
                 Success = true,
-                Message = user.IsTwoFactorEnabled
-                    ? "Enter your authenticator OTP."
-                    : "Set up your authenticator app.",
+                Message = "Password verified. Enter your authenticator OTP.",
                 ChallengeId = challengeId,
-                Requires2FASetup = !user.IsTwoFactorEnabled,
+                Requires2FASetup = requiresSetup,
                 Role = user.Role?.RoleName
             };
         }
 
         public async Task<AuthResponseDto> Setup2FA(Setup2FADto dto)
         {
-            User? user = await db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.LoginChallengeId == dto.ChallengeId && u.LoginChallengeExpiry > DateTime.UtcNow);
+            if (string.IsNullOrWhiteSpace(dto.ChallengeId))
+            {
+                return new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Challenge ID is missing. Please log in again."
+                };
+            }
+
+            var user = await db.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u =>
+                    u.LoginChallengeId == dto.ChallengeId);
 
             if (user == null)
+            {
+                return new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Challenge not found. Please log in again."
+                };
+            }
+
+            if (user.LoginChallengeExpiry == null ||
+                user.LoginChallengeExpiry <= DateTime.UtcNow)
             {
                 return new AuthResponseDto
                 {
@@ -305,7 +332,8 @@ namespace Loan.Infrastructure.Services
                 };
             }
 
-            if (user.IsTwoFactorEnabled)
+            if (user.IsTwoFactorEnabled &&
+                !string.IsNullOrWhiteSpace(user.AuthenticatorSecret))
             {
                 return new AuthResponseDto
                 {
@@ -314,11 +342,12 @@ namespace Loan.Infrastructure.Services
                 };
             }
 
-            if (string.IsNullOrEmpty(user.AuthenticatorSecret))
+            // Generate a secret only if one does not already exist.
+            if (string.IsNullOrWhiteSpace(user.AuthenticatorSecret))
             {
-                user.AuthenticatorSecret = Base32Encoding.ToString(KeyGeneration.GenerateRandomKey(20));
-
-                await db.SaveChangesAsync();
+                user.AuthenticatorSecret =
+                    OtpNet.Base32Encoding.ToString(
+                        OtpNet.KeyGeneration.GenerateRandomKey(20));
             }
 
             string issuer = config["Jwt:Issuer"] ?? "LoanApp";
@@ -329,56 +358,114 @@ namespace Loan.Infrastructure.Services
                 $"?secret={user.AuthenticatorSecret}" +
                 $"&issuer={Uri.EscapeDataString(issuer)}";
 
-            using QRCodeGenerator generator = new QRCodeGenerator();
+            using var generator = new QRCoder.QRCodeGenerator();
 
-            using QRCodeData qrData = generator.CreateQrCode(otpUrl, QRCodeGenerator.ECCLevel.Q);
+            using var qrData = generator.CreateQrCode(
+                otpUrl,
+                QRCoder.QRCodeGenerator.ECCLevel.Q);
 
-            PngByteQRCode qrCode = new PngByteQRCode(qrData);
+            var qrCode = new QRCoder.PngByteQRCode(qrData);
 
-            string base64 = Convert.ToBase64String(
-                qrCode.GetGraphic(10));
+            string base64 = Convert.ToBase64String(qrCode.GetGraphic(10));
+
+            await db.SaveChangesAsync();
 
             return new AuthResponseDto
             {
                 Success = true,
-                Message = "Scan the QR code using your authenticator app.",
-                ChallengeId = dto.ChallengeId,
-                QRCode = "data:image/png;base64," + base64,
+                Message = "Scan the QR code and enter the authenticator code.",
+                ChallengeId = user.LoginChallengeId,
                 Requires2FASetup = true,
+                QRCode = "data:image/png;base64," + base64,
                 Role = user.Role?.RoleName
             };
         }
 
         public async Task<AuthResponseDto> VerifyOTP(VerifyOTPDto dto)
         {
-            User? user = await db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.LoginChallengeId == dto.ChallengeId && u.LoginChallengeExpiry > DateTime.UtcNow);
-
-            if (user == null || string.IsNullOrEmpty(user.AuthenticatorSecret))
+            if (string.IsNullOrWhiteSpace(dto.ChallengeId) ||
+                string.IsNullOrWhiteSpace(dto.OTP))
             {
                 return new AuthResponseDto
                 {
                     Success = false,
-                    Message = "Invalid challenge or authenticator is not configured."
+                    Message = "Challenge ID and OTP are required."
                 };
             }
 
-            Totp totp = new Totp(Base32Encoding.ToBytes(user.AuthenticatorSecret));
+            var user = await db.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u =>
+                    u.LoginChallengeId == dto.ChallengeId);
 
-            if (!totp.VerifyTotp(dto.OTP, out long matchedStep, new VerificationWindow(1, 1)))
+            if (user == null)
             {
                 return new AuthResponseDto
                 {
                     Success = false,
-                    Message = "Invalid authenticator OTP."
+                    Message = "Challenge not found. Please log in again."
                 };
             }
 
+            if (user.LoginChallengeExpiry == null ||
+                user.LoginChallengeExpiry <= DateTime.UtcNow)
+            {
+                return new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Login challenge expired. Please log in again."
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(user.AuthenticatorSecret))
+            {
+                return new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Authenticator is not configured. Please set it up."
+                };
+            }
+
+            bool validOtp;
+
+            try
+            {
+                var totp = new OtpNet.Totp(
+                    OtpNet.Base32Encoding.ToBytes(user.AuthenticatorSecret));
+
+                validOtp = totp.VerifyTotp(
+                    dto.OTP.Trim(),
+                    out _,
+                    new OtpNet.VerificationWindow(previous: 1, future: 1));
+            }
+            catch (FormatException)
+            {
+                return new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Authenticator secret is invalid."
+                };
+            }
+
+            if (!validOtp)
+            {
+                return new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Invalid authenticator OTP. Try the current code."
+                };
+            }
+
+            // OTP is valid.
             user.IsTwoFactorEnabled = true;
+
+            // Invalidate the challenge after successful verification.
             user.LoginChallengeId = null;
             user.LoginChallengeExpiry = null;
 
             await db.SaveChangesAsync();
 
+            // Use your existing JWT service.
             string token = jwtService.GenerateToken(user);
 
             return new AuthResponseDto
