@@ -4,31 +4,15 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Loan.Controllers
 {
-  
     [Route("api/[controller]")]
     [ApiController]
     public class AuthController : ControllerBase
     {
-        IUserService service;
+        private readonly IUserService service;
 
         public AuthController(IUserService service)
         {
             this.service = service;
-        }
-
-        [HttpPost("Register")]
-        public async Task<IActionResult> Register(RegisterDto dto)
-        {
-            var result = await service.Register(dto);
-            return Ok(result);
-        }
-
-        [HttpPost("VerifyRegistrationOtp")]
-        public async Task<IActionResult> VerifyRegistrationOtp(
-            VerifyRegistrationOtpDto dto)
-        {
-            var result = await service.VerifyRegistrationOtp(dto);
-            return Ok(result);
         }
 
         [HttpPost("Login")]

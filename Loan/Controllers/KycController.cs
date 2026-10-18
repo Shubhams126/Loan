@@ -3,8 +3,8 @@ using Loan.Application.DTOs;
 using Loan.Application.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
-using System.Threading.Tasks;
 
 namespace Loan.Controllers
 {
@@ -13,7 +13,7 @@ namespace Loan.Controllers
     [Authorize]
     public class KycController : ControllerBase
     {
-        IKycService service;
+        private readonly IKycService service;
 
         public KycController(IKycService service)
         {
@@ -22,8 +22,8 @@ namespace Loan.Controllers
 
         [HttpPost("upload")]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> Upload([FromForm] string documentType, /*[FromForm]*/ IFormFile file)
-
+        public async Task<IActionResult> Upload(
+            [FromForm] string documentType, IFormFile file)
         {
             var customerIdClaim = User.FindFirst("CustomerId")?.Value;
 
@@ -35,14 +35,23 @@ namespace Loan.Controllers
                 });
             }
 
-            if (file == null)
+            if (file == null || file.Length == 0)
             {
-                return BadRequest(new { message = "Please select a file." });
+                return BadRequest(new
+                {
+                    message = "Please select a file."
+                });
             }
 
             using var stream = file.OpenReadStream();
 
-            string result = await service.UploadDocument(customerId, documentType, file.FileName, stream, file.Length);
+            string result = await service.UploadDocument(
+                customerId,
+                documentType,
+                file.FileName,
+                stream,
+                file.Length
+            );
 
             if (result != "Document uploaded successfully.")
             {
@@ -52,27 +61,22 @@ namespace Loan.Controllers
             return Ok(new { message = result });
         }
 
-            using var stream = dto.File.OpenReadStream();
-
-            var result = await service.UploadDocument(
-                dto.CustomerId,
-                dto.DocumentType,
-                dto.File.FileName,
-                stream,
-                dto.File.Length
-            );
-
-            if (result != "Document uploaded successfully.")
-                return BadRequest(result);
-
-            return Ok(result);
-        }
         [HttpGet("MyDocuments")]
         [Authorize(Roles = "Customer")]
         public async Task<IActionResult> MyDocuments()
         {
-            int customerId = int.Parse(User.FindFirst("CustomerId")!.Value);
+            var customerIdClaim = User.FindFirst("CustomerId")?.Value;
+
+            if (!int.TryParse(customerIdClaim, out int customerId))
+            {
+                return Unauthorized(new
+                {
+                    message = "Customer ID not found in token."
+                });
+            }
+
             var documents = await service.GetCustomerDocuments(customerId);
+
             return Ok(documents);
         }
 
@@ -88,17 +92,46 @@ namespace Loan.Controllers
         [Authorize(Roles = "LoanOfficer")]
         public async Task<IActionResult> Approve(int documentId)
         {
-            int officerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            string result = await service.ApproveDocument(documentId, officerId);
+            var officerClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(officerClaim, out int officerId))
+            {
+                return Unauthorized(new
+                {
+                    message = "Officer ID not found in token."
+                });
+            }
+
+            string result = await service.ApproveDocument(
+                documentId,
+                officerId
+            );
+
             return Ok(new { message = result });
         }
 
         [HttpPut("Reject/{documentId}")]
         [Authorize(Roles = "LoanOfficer")]
-        public async Task<IActionResult> Reject(int documentId, [FromBody] RejectKycDto dto)
+        public async Task<IActionResult> Reject(
+            int documentId,
+            [FromBody] RejectKycDto dto)
         {
-            int officerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            string result = await service.RejectDocument(documentId, officerId, dto);
+            var officerClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(officerClaim, out int officerId))
+            {
+                return Unauthorized(new
+                {
+                    message = "Officer ID not found in token."
+                });
+            }
+
+            string result = await service.RejectDocument(
+                documentId,
+                officerId,
+                dto
+            );
+
             return Ok(new { message = result });
         }
     }
